@@ -12,6 +12,7 @@ Use Node `^22.19.0 || ^24.11.0 || >=26.0.0`:
 pnpm install --frozen-lockfile
 pnpm test
 pnpm verify
+pnpm verify:connection
 node verify/measure.mjs
 ```
 
@@ -27,11 +28,12 @@ The check-in also pins the exact host-side contract this plugin calls, as read f
 - Real Cordis host → dsh-rea → official DSH MCP bridge → separate upstream stdio MCP.
 - Second pass through the real DSH worker-thread `run_code` interface.
 - Complete `content` and `structuredContent` deep comparison, not selected fields or mocks.
-- **35 checks passed** in the checked-in integration report; **10 unit/harness tests passed**.
+- **35 checks passed** in the checked-in integration report; **13 unit/harness tests passed**; **11 real-HTTP checks passed** in `verify/connection.mjs`.
 - All **170 names, descriptions and input schemas** compared.
 - Original Skill v37 body, metadata, resource directory and six references checked.
 - The plugin's prompt RPC is compared against the reference client for all six prompt metadata sets, all six rendered message bodies and one original `provider_id` completion, in both presentation modes.
-- The real browser bundle is loaded against a minimal React/DOM harness: closed-panel silence, required-argument gating, completion request payload, exact preview text, draft-preserving insertion through `setDraft`, and error surfacing.
+- `verify/connection.mjs` mounts the installed `WebServer` + `Connection` + this plugin and speaks the real wire: 401 before a browser session exists, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus correlation-id echo, endpoint/method mismatch, non-JSON content type, an unknown endpoint inside the channel, an untrusted `Host` header, an invalid envelope, and channel removal on disposal.
+- The real browser bundle is loaded against a minimal React/DOM harness and drives the actual `/` source: idle silence, source registration, candidate filtering, a `handled` pick that writes no draft, required-argument gating, completion payload, exact preview text, draft-preserving insertion through `setDraft`, error surfacing and the post-upgrade restart hint.
 - JS fixture includes fetch/header, child-process, event, closure and timer syntax. Analysis and retained data-flow trace compared.
 - Retained Evidence view and bundle listing compared; reference producer is rerun per mode because closing an upstream target clears retained evidence.
 - Offline HAR contains one HTTP transaction, and ZIP contains one text member. No fixture application code or recorded URL is executed/fetched.

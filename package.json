@@ -8,7 +8,7 @@
   "main": "lib/index.js",
   "files": ["lib", "cordis.patch.yml", "README.md", "README.zh.md", "LICENSE"],
   "repository": { "type": "git", "url": "git+https://github.com/JeremyWangCY/dsh-rea.git" },
-  "scripts": { "test": "node --test test/*.test.mjs", "verify": "node verify/integration.mjs" },
+  "scripts": { "test": "node --test test/*.test.mjs", "verify": "node verify/integration.mjs", "verify:connection": "node verify/connection.mjs" },
   "dependencies": { "rea-agents": "6.4.0", "js-yaml": "^4.1.0", "semver": "^7.7.0", "@modelcontextprotocol/sdk": "1.30.0", "zod": "^4.4.3" },
   "devDependencies": {
     "@deepseek-ai/dsh-mcp-client": "0.1.5-rc.3",
