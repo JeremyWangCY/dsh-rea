@@ -17,6 +17,10 @@ node verify/measure.mjs
 
 `DSH_REA_TEST_MODULE_ROOT` optionally selects an installed DSH module root for Cordis/system-prompt/tools/skills/worker services; otherwise checkout dependencies are used. Both clients run the same installed upstream package. Fixtures are regenerated deterministically by the test. Evidence identities include absolute source paths, so IDs on another machine may differ; each run compares both sides on that machine.
 
+The desktop application this adapter targets stages its packages under `%APPDATA%\com.jeremy.deepx-workbench\runtime\node_modules`, and that composition is **`@deepseek-ai/dsh*` 0.1.5-rc.3 throughout** (`dsh-mcp-client`, `dsh-client-connection`, `dsh-client-modules`, `dsh-host-webserver`, `dsh-tools`, `dsh-skill`, `dsh-code-runtime-worker-thread`, `cordis` 4.0.2). Pointing `DSH_REA_TEST_MODULE_ROOT` at that directory runs the same comparison against the exact installed Host module set, so the tested service versions and the running service versions are the same release.
+
+The check-in also pins the exact host-side contract this plugin calls, as read from that installed runtime: `HostConnectionService.register(owner, channel, handler)` with the public two-argument `ctx.connection.rpc.handle(channel, handler)` and a prefix web route whose handler rejects untrusted Host/Origin requests before dispatch. This plugin passes a third `{ authority: 'loopback' }` value, which the installed two-argument implementation ignores and a newer development build requires; one call site therefore satisfies both.
+
 ## Method and results
 
 - Real SDK reference client → upstream stdio MCP.
@@ -52,7 +56,8 @@ Counts describe an isolated deployment containing REA, not all tools in the desk
 4. Official DSH subprocess launch scrubs inherited credential-shaped/DSH variables. Explicit REA environment values are forwarded; users must explicitly configure relevant provider variables. Codex process inheritance is not assumed identical.
 5. PTC surfaces errors as `ToolCallError` rather than raw MCP `isError`; the tested upstream message remains available.
 6. Model inference quality, provider schema acceptance limits and full client/UI equivalence are **not** proven by transport comparison. Completion parity is demonstrated for one provider-independent completion kind; completions requiring a specific external engine or retained provider record are not exhaustively covered.
-7. The published peer range includes DSH 0.2.0-rc.2 because this desktop runtime activated the adapter, but the isolated differential suite's checked-in dependencies target the tested 0.1.5-rc.3 services. Version-specific integration should be rerun on a new Host.
-8. The vendored bridge is verified as *upstream bytes plus exactly the documented patch* by re-deriving and comparing the whole file. That does not make it immune to future upstream change: `verify/vendor-bridge.mjs` refuses to run against any other upstream version until the patch is reviewed.
+7. The published peer range includes DSH 0.2.0-rc.2 because this desktop runtime activated the adapter, but the isolated differential suite's checked-in dependencies target the tested 0.1.5-rc.3 services. Version-specific integration should be rerun on a new Host. The installed desktop composition itself is 0.1.5-rc.3, and the suite was also run against that exact module set; a future Host that adopts the newer `authority`-carrying RPC signature is covered by the same call.
+9. The vendored bridge is verified as *upstream bytes plus exactly the documented patch* by re-deriving and comparing the whole file. That does not make it immune to future upstream change: `verify/vendor-bridge.mjs` refuses to run against any other upstream version until the patch is reviewed.
+10. The live GUI control was not confirmed in the running application: that Host process started before this version existed and had already cached `dsh-rea` as a host-only package, so neither the host-side channel nor the browser bundle can appear until it restarts. The bundle's behaviour is covered by the DOM harness, and the profile's `dsh-rea/client` resolution was verified directly (`dsh-rea/package.json` → this checkout, `dsh-rea/client` → `lib/client.js`).
 
 The committed JSON reports are machine-readable verification evidence and include limitations rather than asserting universal equivalence.

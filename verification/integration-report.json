@@ -175,5 +175,6 @@
     "@deepseek-ai/dsh-tools": "0.1.5-rc.3",
     "@deepseek-ai/dsh-skill": "0.1.5-rc.3",
     "@deepseek-ai/dsh-code-runtime-worker-thread": "0.1.5-rc.3"
-  }
+  },
+  "moduleRoot": "C:\\Users\\Laptop\\AppData\\Roaming\\com.jeremy.deepx-workbench\\runtime"
 }

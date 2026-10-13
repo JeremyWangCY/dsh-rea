@@ -218,3 +218,16 @@ test('failed protocol calls surface an alert and no preview', async () => {
   assert.equal(findAll(tree, n => n.props?.role === 'alert')[0].props.children, 'REA connection unavailable')
   assert.equal(byLabel(tree, '原版文本预览'), undefined)
 })
+
+test('a missing channel names the restart remedy instead of a bare transport status', async () => {
+  const react = fresh()
+  const mounted = await mount({ responses: { list: () => { throw new Error('transport failure for /dsh-rea-prompts/list: HTTP 404') } } })
+  const { component } = mounted.registration
+  const props = { sessionId: 's1', rpc: mounted.rpc, useInput: (selector) => selector({ draft: '' }), inputActions: { setDraft() {} } }
+  react.render(react.react.createElement(component, props))
+  byText(react.render(react.react.createElement(component, props)), 'REA 模板').props.onClick()
+  for (let i = 0; i < 5; i++) { react.render(react.react.createElement(component, props)); await new Promise(r => setTimeout(r, 0)) }
+  const alert = findAll(react.render(react.react.createElement(component, props)), n => n.props?.role === 'alert')[0]
+  assert.match(alert.props.children, /重启一次 DSH/)
+  assert.match(alert.props.children, /HTTP 404/)
+})

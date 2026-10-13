@@ -37,6 +37,8 @@ async function installedVersion(name){
  }
 }
 report.hostServices=Object.fromEntries(await Promise.all(['@deepseek-ai/cordis','@deepseek-ai/dsh-tools','@deepseek-ai/dsh-skill','@deepseek-ai/dsh-code-runtime-worker-thread'].map(async name=>[name,await installedVersion(name)])))
+// Provenance: which module set provided those Host services.
+report.moduleRoot=process.env.DSH_REA_TEST_MODULE_ROOT??'project checkout node_modules'
 const pass=(name,details)=>{report.checks.push({name,pass:true,details});console.log('PASS',name,details??'')}
 const paths=plugin.upstreamPaths()
 const direct=new Client({name:'rea-reference',version:'1'}, {capabilities:{}})
