@@ -9,8 +9,23 @@
 - 使用 DSH 官方 `@deepseek-ai/dsh-mcp-client` 处理目录分页、目录变化、取消、生命周期、输出校验和附件投影，避免自行写一套不完整桥接。
 - 原版 `reverse-engineer-anything` Skill v37、170 工具元数据及全部六篇 references。直接从固定依赖中注册，并指定其资源目录；不覆盖 Codex 或用户自己的技能。
 - 运行原版有状态 MCP 进程，保留完整 Evidence 的 content 和 structuredContent，不缩减结果、不重新生成证据 ID。
+- **六个原版 MCP prompts、14 个参数及原版动态补全**全部接入输入框模板面板，与 170 个工具**共用同一个 REA Client、进程与分析会话**。
 
 REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、设备、商业授权要求与原版相同。
+
+## 输入框里的任务模板
+
+输入框左侧工具行会为当前会话增加一个 **REA 模板** 控件：列出六个原版 prompt（`investigate_feature`、`compare_versions`、`verify_reconstruction`、`trace_crash`、`audit_residual_unknowns`、`prepare_bounded_process_capture`），显示原版参数说明，向上游服务请求参数补全（目标 document、provider、procedure、已保留 Evidence、capture、manifest、occurrence、未决 unknown），并在插入前预览上游渲染出的**原文**。
+
+保真约束：
+
+- 直接调用原版 MCP `prompts/list`、`prompts/get`、`completion/complete`，走的就是工具已经在用的那个连接——不另起第二个 REA 进程，不改写模板，不缓存或编造补全项。
+- 预览不执行任何分析；每次工具调用仍然由模型显式决定。
+- 插入只是一次草稿写入：面板不会提交、不会发送、不会替你选目标，需自行编辑或发送。
+- 连接换代后到达的迟到结果会被拒绝，过期模板不可能被插入。
+- 面板只在 Web 界面存在；CLI/无头 profile 仍保留全部 170 个工具和 Skill，只是没有这个输入框控件。
+
+由于 DSH 会在 Host 进程生命周期内缓存每个包的客户端元数据，升级后需要**重启一次 DSH**：已在旧版本挂载过 `dsh-rea` 的运行中 Host 已把它缓存为“仅宿主包”，重启前不会提供新的浏览器 bundle。无需改任何配置。
 
 ## 安装
 
@@ -64,11 +79,11 @@ Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插�
 
 ## 已验证与未验证
 
-`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：170 个名称/描述/输入 schema、原版 Skill、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。使用受支持 Node 和 pnpm 安装依赖后，运行 `pnpm test`、`pnpm verify` 即可复现；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
+`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：170 个名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动面板：未打开时不发协议请求、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示。`pnpm test` 共 10 项单元/面板测试，`pnpm verify` 为 35 项差分校验。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
 
-**未声称**：170 个操作全部实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema。外部引擎须另做具体任务测试。
+**未声称**：170 个操作全部实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
 
-DSH 官方 MCP 桥接目前只呈现工具，没有 REA 六个可选 MCP prompts 和参数 completions 的 UI。它们是调查起点模板而非分析工具；原版 Skill 已可用。这是明确披露的协议/UI 差异，不称作客户端全面等价。上游 prompt/completion 可另用 MCP 检查。官方桥接也不把 MCP annotations 复制到 ToolRuntime 元数据，required-task 执行不受支持。具体环境、方法和边界见[验证报告](verification/README.md)。
+官方 `@deepseek-ai/dsh-mcp-client` 没有暴露共享连接钩子，因此 `lib/vendor/mcp-bridge.js` 是该桥接的 MIT 原文副本（文件头记录上游 SHA-256），只做**一处**受审查修改：增加可选的第四个 `onClient` 参数。工具注册、传输、重连、错误与卸载行为与上游逐字节一致，`test/plugin.test.mjs` 会重新推导并比对整份文件，确保它不会静默漂移。官方桥接也不把 MCP annotations 复制到 ToolRuntime 元数据，required-task 执行不受支持。具体环境、方法和边界见[验证报告](verification/README.md)。
 
 ## 从 v0.1 迁移
 

@@ -4,6 +4,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import yaml from 'js-yaml'
 import * as plugin from '../lib/index.js'
+import { renderVendoredBridge } from '../verify/vendor-bridge.mjs'
 
 test('default config preserves all tools and reports startup failure', () => {
  const config=plugin.Config({})
@@ -41,6 +42,16 @@ test('bundle patch inserts plugin with valid id/name', async () => {
  assert.equal(patch[0].insert[0].name,pkg.name)
  assert.equal(patch[0].insert[0].id,'dsh-rea')
 })
+test('vendored bridge is exactly upstream plus the documented shared-client hook', async () => {
+  const { code, upstreamSha256, patches } = await renderVendoredBridge()
+  assert.equal(patches, 6)
+  assert.match(upstreamSha256, /^[a-f0-9]{64}$/)
+  assert.equal(await readFile(new URL('../lib/vendor/mcp-bridge.js', import.meta.url), 'utf8'), code)
+  // The notice and the only semantic edit are both present.
+  assert.match(code, /Copyright \(c\) 2026 DeepSeek/)
+  assert.equal(code.split('onClient?.(generation)').length - 1, 1)
+})
+
 test('disabled plugin never mounts a server or skill', async () => {
  await plugin.apply({skills:{register(){throw Error('unexpected registration')}},plugin(){throw Error('unexpected launch')}},plugin.Config({enabled:false}))
 })

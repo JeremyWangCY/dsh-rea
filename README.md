@@ -9,8 +9,23 @@ Full [REA](https://github.com/morluto/rea) 6.4.0 MCP tools and its original vers
 - The official `@deepseek-ai/dsh-mcp-client` handles pagination, notifications, cancellation, lifecycle, output validation and attachment projection.
 - Original `reverse-engineer-anything` skill v37, tool_count=170 and all six references. The plugin registers the package's skill with its own resource directory; it does not overwrite Codex/user skills.
 - Original stateful upstream MCP process and complete Evidence `content`/`structuredContent`. No result summaries or reconstructed IDs.
+- All **six original MCP prompts** with their 14 arguments and the original dynamic completions, in a composer template panel that shares the *same* REA Client, process and analysis session as the 170 tools.
 
 REA is an exact npm dependency, not a reimplementation. Native engines and commercial licenses remain bring-your-own, exactly as upstream.
+
+## Prompt templates in the composer
+
+The composer's left tool row gains one **REA 模板** control for the current session. It lists the six original prompts (`investigate_feature`, `compare_versions`, `verify_reconstruction`, `trace_crash`, `audit_residual_unknowns`, `prepare_bounded_process_capture`), renders their original argument descriptions, asks the upstream server for argument completions (target documents, providers, procedures, retained Evidence, captures, manifests, occurrences, unresolved unknowns) and previews the exact upstream-rendered text before inserting it into the draft.
+
+Fidelity rules of that panel:
+
+- It calls the original MCP `prompts/list`, `prompts/get` and `completion/complete` on the connection the tools already use — no second REA process, no rewritten templates, no cached or fabricated suggestions.
+- Preview never executes analysis; every tool call stays a separate, explicit model decision.
+- Insertion is a plain draft write. The panel never submits, never sends and never selects a target; you edit or send the draft yourself.
+- A generation guard rejects a render whose answer arrives after the connection changed, so a stale template can never be inserted.
+- The panel is Web-only. CLI/headless profiles keep all 170 tools and the skill; only the composer control is absent.
+
+Because DSH caches each package's client metadata for the lifetime of a Host process, adding this panel requires **one DSH restart** after upgrading: a running Host that already mounted `dsh-rea` before this version has cached it as a host-only package and will not serve the new bundle until it restarts. No configuration change is needed.
 
 ## Install
 
@@ -64,11 +79,11 @@ Use the original skill's routing, Evidence and provider-recovery instructions. R
 
 ## Verification and limits
 
-`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: all 170 names/descriptions/input schemas, original skill, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. Install dependencies with a supported Node and pnpm, then run `pnpm test` and `pnpm verify`. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
+`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: all 170 names/descriptions/input schemas, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the panel: closed-panel silence, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, and error surfacing. `pnpm test` runs 10 unit/harness tests; `pnpm verify` runs the 35-check differential suite. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
 
-Not claimed: all 170 operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits. External providers require task-specific verification.
+Not claimed: all 170 operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits; exhaustive completion coverage for every external provider. External providers require task-specific verification.
 
-DSH's official MCP bridge currently exposes tools, not a UI for REA's six optional MCP prompts or prompt argument completions. They are investigation-start templates rather than analysis tools; the original skill remains available. This protocol/UI difference is disclosed, not called full client parity. Raw upstream prompt/completion availability is separately inspectable via MCP. The official bridge also does not copy MCP annotations to ToolRuntime metadata; required-task execution would be unsupported. See [the bounded verification report](verification/README.md) for environment, methods and exact limitations.
+The official `@deepseek-ai/dsh-mcp-client` exposes no shared-connection hook, so `lib/vendor/mcp-bridge.js` is a verbatim MIT copy of that bridge (upstream SHA-256 recorded in its header) with exactly one reviewed local change: an optional fourth `onClient` argument. Tool registration, transport, reconnect, error and disposal behavior are byte-identical to upstream, and `test/plugin.test.mjs` re-derives and compares the whole file so it cannot silently drift. The official bridge also does not copy MCP annotations to ToolRuntime metadata; required-task execution would be unsupported. See [the bounded verification report](verification/README.md) for environment, methods and exact limitations.
 
 ## Migration from v0.1
 

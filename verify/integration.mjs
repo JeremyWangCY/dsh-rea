@@ -24,7 +24,7 @@ const report={upstream:'6.4.0',node:process.versions.node,checks:[],modes:{},lim
  'Only deterministic JS/data-flow, one-record HAR, one-member ZIP and state/error/disposal scenarios were compared.',
  'Cancellation tested before dispatch, not during a long-running engine operation.',
  'Native external engines, live browser/Electron, ADB and image attachments were not exercised.',
- 'Six upstream MCP prompts and completions exist but DSH official tools bridge has no prompt UI.',
+ 'Six original prompts and same-session completions tested; external native-provider completions not exhaustively exercised.',
  'PTC error contract differs from MCP: program receives a ToolCallError with upstream message.',
  'Official bridge does not preserve MCP annotations as ToolRuntime metadata; native client metadata parity is not claimed.',
  'Model reasoning/output equivalence is not established by transport tests.'
@@ -100,7 +100,20 @@ try {
   await ctx.plugin(Skills,{})
   if(mode==='ptc') await ctx.plugin(Worker,{})
   await ctx.plugin(Tools,{mode})
-  const fiber=await ctx.plugin(plugin,{})
+  let promptRpc
+   ctx.provide('connection',{rpc:{handle(channel,handler){assert.equal(channel,'/dsh-rea-prompts');promptRpc=handler;return async()=>{promptRpc=undefined}}}})
+   const fiber=await ctx.plugin(plugin,{})
+   const requestPrompt=async(method,args={})=>{const result=await promptRpc(method,args,new AbortController().signal);assert.equal(result.ok,true,JSON.stringify(result));return result.value}
+   const actualPrompts=await requestPrompt('list')
+   assert.deepEqual(actualPrompts.prompts,prompts.prompts)
+   for(const prompt of prompts.prompts){
+    const args=Object.fromEntries((prompt.arguments??[]).filter(a=>a.required).map(a=>[a.name,'verification']))
+    assert.deepEqual(await requestPrompt('get',{name:prompt.name,arguments:args}),await direct.getPrompt({name:prompt.name,arguments:args}))
+   }
+   pass(`${mode}: six original prompt metadata and rendered messages identical`)
+   const providerParams={name:'investigate_feature',argument:'provider_id',value:'',arguments:{}}
+   assert.deepEqual(await requestPrompt('complete',providerParams),await direct.complete({ref:{type:'ref/prompt',name:providerParams.name},argument:{name:providerParams.argument,value:''},context:{arguments:{}}}))
+   pass(`${mode}: original provider completion identical`)
   const schemas=ctx.tools.schemas().filter(s=>s.name.startsWith('mcp__rea__'))
   assert.equal(schemas.length,170)
   for(const t of upstream) {

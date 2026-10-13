@@ -14,6 +14,14 @@
       }
     },
     {
+      "name": "native: six original prompt metadata and rendered messages identical",
+      "pass": true
+    },
+    {
+      "name": "native: original provider completion identical",
+      "pass": true
+    },
+    {
       "name": "native: 170 names / input schemas / descriptions identical",
       "pass": true
     },
@@ -67,6 +75,14 @@
     },
     {
       "name": "native: owned tools removed on dispose",
+      "pass": true
+    },
+    {
+      "name": "ptc: six original prompt metadata and rendered messages identical",
+      "pass": true
+    },
+    {
+      "name": "ptc: original provider completion identical",
       "pass": true
     },
     {
@@ -149,7 +165,7 @@
     "Only deterministic JS/data-flow, one-record HAR, one-member ZIP and state/error/disposal scenarios were compared.",
     "Cancellation tested before dispatch, not during a long-running engine operation.",
     "Native external engines, live browser/Electron, ADB and image attachments were not exercised.",
-    "Six upstream MCP prompts and completions exist but DSH official tools bridge has no prompt UI.",
+    "Six original prompts and same-session completions tested; external native-provider completions not exhaustively exercised.",
     "PTC error contract differs from MCP: program receives a ToolCallError with upstream message.",
     "Official bridge does not preserve MCP annotations as ToolRuntime metadata; native client metadata parity is not claimed.",
     "Model reasoning/output equivalence is not established by transport tests."
