@@ -102,10 +102,27 @@ try {
   await ctx.plugin(Skills,{})
   if(mode==='ptc') await ctx.plugin(Worker,{})
   await ctx.plugin(Tools,{mode})
-  let promptRpc
-   ctx.provide('connection',{rpc:{handle(channel,handler){assert.equal(channel,'/dsh-rea-prompts');promptRpc=handler;return async()=>{promptRpc=undefined}}}})
+  let promptRoute
+   // The endpoint is a plain webServer route behind the Connection fence; the
+   // real HTTP path is covered by verify/connection.mjs, so here the fakes only
+   // need to deliver one in-process request each.
+   ctx.provide('connection',{requestRejection:()=>undefined})
+   ctx.provide('webServer',{register(route){promptRoute=route;return ()=>{promptRoute=undefined}}})
    const fiber=await ctx.plugin(plugin,{})
-   const requestPrompt=async(method,args={})=>{const result=await promptRpc(method,args,new AbortController().signal);assert.equal(result.ok,true,JSON.stringify(result));return result.value}
+   const requestPrompt=async(method,args={})=>{
+    assert.ok(promptRoute,'the plugin registered no prompt route')
+    const body=JSON.stringify({type:'client-request',rpcId:`verify-${method}`,method,payload:args})
+    const req={method:'POST',url:`/dsh-rea-prompts/${method}`,headers:{'content-type':'application/json'},on(){},async *[Symbol.asyncIterator](){yield Buffer.from(body)}}
+    let status,text
+    const res={writeHead(code){status=code;return this},setHeader(){return this},on(){},end(value){text=value??'';return this}}
+    await promptRoute.handler(req,res)
+    assert.equal(status,200,`HTTP ${status}: ${text}`)
+    const envelope=JSON.parse(text)
+    assert.equal(envelope.type,'server-response')
+    assert.equal(envelope.rpcId,`verify-${method}`)
+    assert.equal(envelope.result.ok,true,JSON.stringify(envelope.result))
+    return envelope.result.value
+   }
    const actualPrompts=await requestPrompt('list')
    assert.deepEqual(actualPrompts.prompts,prompts.prompts)
    for(const prompt of prompts.prompts){

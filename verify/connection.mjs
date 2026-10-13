@@ -1,8 +1,8 @@
-// End-to-end host-side check of the prompt channel over real HTTP, using the
-// exact installed DSH services: WebServer + Connection + the plugin's own RPC
-// registration, including the browser cookie the real page carries. The
-// browser bundle consumes this same wire, so this closes the gap between the
-// in-process fake used by integration.mjs and the real Host.
+// End-to-end host-side check of the prompt endpoint over real HTTP, using the
+// exact installed DSH services: WebServer + Connection + the plugin's own
+// route, mounted the way the production loader composes them (the Connection
+// plugin's context does NOT carry webServer — a registration path that needs it
+// fails here too, which is how an earlier revision broke activation).
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -19,6 +19,8 @@ const load = async name => import(pathToFileURL(hostRequire.resolve(name)).href)
 const { Context } = await load('@deepseek-ai/cordis')
 const WebServer = (await load('@deepseek-ai/dsh-host-webserver')).default
 const Connection = await load('@deepseek-ai/dsh-client-connection') // namespace plugin
+// The browser caller's own response validator: its acceptance is the real bar.
+const { serverResponseSchema } = Connection
 const SystemPrompt = (await load('@deepseek-ai/dsh-system-prompt')).default
 const Tools = (await load('@deepseek-ai/dsh-tools')).default
 const Skills = (await load('@deepseek-ai/dsh-skill')).default
@@ -57,33 +59,24 @@ function mintCookie(connection, port) {
   return cookie
 }
 
-/** One real JSON-RPC round trip, exactly as createWebConnectionRpc sends it. */
-async function rpc(port, method, payload, { cookie, rpcId = `probe-${method}`, host, headers, raw } = {}) {
-  const requestHeaders = { 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...(host ? { host } : {}), ...headers }
-  for (const [name, value] of Object.entries(requestHeaders)) if (value === undefined) delete requestHeaders[name]
-  const response = await fetch(`http://127.0.0.1:${port}/dsh-rea-prompts/${method}`, {
-    method: 'POST',
-    headers: requestHeaders,
-    body: raw ?? JSON.stringify({ type: 'client-request', rpcId, method, payload }),
-  })
-  const text = await response.text()
-  return { status: response.status, text, json: (() => { try { return JSON.parse(text) } catch { return undefined } })() }
-}
-
-/** node:http probe for the cases fetch() cannot express (a forged Host header). */
-function rawRequest(port, method, { cookie, host }) {
+/** One real round trip over node:http, so a forged Host header is expressible. */
+function call(port, endpoint, { cookie, host, method = 'POST', contentType = 'application/json', body, rpcId = `probe-${endpoint}` } = {}) {
   return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({ type: 'client-request', rpcId: 'probe-host', method, payload: {} })
-    const request = httpRequest({ host: '127.0.0.1', port, path: `/dsh-rea-prompts/${method}`, method: 'POST', headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload), cookie, host } }, response => {
+    const payload = body ?? JSON.stringify({ type: 'client-request', rpcId, method: endpoint, payload: {} })
+    const headers = { 'content-type': contentType }
+    if (method !== 'GET') headers['content-length'] = Buffer.byteLength(payload)
+    if (cookie !== undefined) headers.cookie = cookie
+    if (host !== undefined) headers.host = host
+    const request = httpRequest({ host: '127.0.0.1', port, path: `/dsh-rea-prompts/${endpoint}`, method, headers }, response => {
       const chunks = []
       response.on('data', chunk => chunks.push(chunk))
       response.on('end', () => {
         const text = Buffer.concat(chunks).toString('utf8')
-        resolve({ status: response.statusCode, text, json: (() => { try { return JSON.parse(text) } catch { return undefined } })() })
+        resolve({ status: response.statusCode, text, json: (() => { try { return JSON.parse(text) } catch { return undefined } })(), rpcId })
       })
     })
     request.on('error', reject)
-    request.end(payload)
+    request.end(method === 'GET' ? undefined : payload)
   })
 }
 
@@ -94,13 +87,10 @@ try {
   await direct.connect(new StdioClientTransport({ command: process.execPath, args: [paths.launcher, 'mcp'], stderr: 'pipe' }))
   await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
   ctx.provide('credentials', credentialsStub())
-  // The production loader entry declares `inject: [webRuntime]`, which is what
-  // puts `webServer` on the Connection plugin's own context; its `rpc` facade
-  // registers routes through that same context. Mount it under an equivalent
-  // inject scope so this scenario matches the real composition.
-  await new Promise((resolve, reject) => {
-    ctx.inject(['webServer'], (scoped) => { scoped.plugin(Connection, { trustedHosts: [] }).then(resolve, reject) })
-  })
+  // Production composition: the loader entry injects [webRuntime], so the
+  // Connection plugin's own context has no webServer. Mounting it that way is
+  // what makes this scenario catch a registration path that needs one.
+  await ctx.plugin(Connection, { trustedHosts: [] })
   await ctx.plugin(SystemPrompt, {})
   await ctx.plugin(Skills, {})
   await ctx.plugin(Tools, { mode: 'native' })
@@ -110,22 +100,23 @@ try {
   const port = ctx.webServer.port
   assert.equal(typeof port, 'number', 'WebServer did not listen')
   assert.equal(ctx.tools.schemas().filter(s => s.name.startsWith('mcp__rea__')).length, 170)
-  pass('real Host: WebServer + Connection + dsh-rea mounted with 170 tools', { port, moduleRoot: moduleRoot ?? 'project checkout' })
+  pass('real Host: WebServer + production-shaped Connection + dsh-rea, 170 tools', { port, moduleRoot: moduleRoot ?? 'project checkout' })
 
   // Unauthenticated first: the fence must refuse before any handler runs.
-  const anonymous = await rpc(port, 'list', {})
+  const anonymous = await call(port, 'list')
   assert.equal(anonymous.status, 401, `expected 401, got ${anonymous.status}: ${anonymous.text}`)
   pass('real HTTP: no browser session is 401 before dispatch')
 
   const cookie = mintCookie(ctx.connection, port)
   const valueOf = round => {
     assert.equal(round.status, 200, `HTTP ${round.status}: ${round.text}`)
-    assert.ok(round.json, `response is not JSON: ${round.text}`)
-    assert.equal(round.json.result.ok, true, JSON.stringify(round.json.result))
-    return round.json.result.value
+    const parsed = serverResponseSchema.parse(round.json)
+    assert.equal(parsed.rpcId, round.rpcId, 'the caller correlation id must round-trip')
+    assert.equal(parsed.result.ok, true, JSON.stringify(parsed.result))
+    return parsed.result.value
   }
 
-  const list = valueOf(await rpc(port, 'list', {}, { cookie }))
+  const list = valueOf(await call(port, 'list', { cookie }))
   const reference = await direct.listPrompts()
   assert.deepEqual(list.prompts, reference.prompts)
   assert.equal(list.serverName, 'rea')
@@ -134,46 +125,51 @@ try {
 
   for (const prompt of reference.prompts) {
     const args = Object.fromEntries((prompt.arguments ?? []).filter(a => a.required).map(a => [a.name, 'verification']))
-    assert.deepEqual(valueOf(await rpc(port, 'get', { name: prompt.name, arguments: args }, { cookie })), await direct.getPrompt({ name: prompt.name, arguments: args }))
+    const body = JSON.stringify({ type: 'client-request', rpcId: `get-${prompt.name}`, method: 'get', payload: { name: prompt.name, arguments: args } })
+    assert.deepEqual(valueOf(await call(port, 'get', { cookie, body, rpcId: `get-${prompt.name}` })), await direct.getPrompt({ name: prompt.name, arguments: args }))
   }
   pass('real HTTP: all six prompts/get render identically')
 
   const completion = { name: 'investigate_feature', argument: 'provider_id', value: '', arguments: {} }
-  assert.deepEqual(valueOf(await rpc(port, 'complete', completion, { cookie })), await direct.complete({ ref: { type: 'ref/prompt', name: completion.name }, argument: { name: completion.argument, value: '' }, context: { arguments: {} } }))
+  const completionBody = JSON.stringify({ type: 'client-request', rpcId: 'complete-1', method: 'complete', payload: completion })
+  assert.deepEqual(
+    valueOf(await call(port, 'complete', { cookie, body: completionBody, rpcId: 'complete-1' })),
+    await direct.complete({ ref: { type: 'ref/prompt', name: completion.name }, argument: { name: completion.argument, value: '' }, context: { arguments: {} } }),
+  )
   pass('real HTTP: completion/complete identical')
 
-  const echoed = await rpc(port, 'list', {}, { cookie, rpcId: 'probe-correlation' })
-  assert.equal(echoed.json.rpcId, 'probe-correlation', 'the caller correlation id must round-trip')
-
-  const mismatched = await rpc(port, 'get', {}, { cookie, raw: JSON.stringify({ type: 'client-request', rpcId: 'probe-mismatch', method: 'list', payload: {} }) })
-  assert.equal(mismatched.json.result.ok, false)
-  assert.equal(mismatched.json.result.error.code, 'gateway/bad-request')
+  const mismatch = await call(port, 'get', { cookie, body: JSON.stringify({ type: 'client-request', rpcId: 'mismatch', method: 'list', payload: {} }), rpcId: 'mismatch' })
+  assert.equal(serverResponseSchema.parse(mismatch.json).result.error.code, 'gateway/bad-request')
   pass('real HTTP: endpoint/method mismatch is a typed gateway error')
 
-  const wrongType = await rpc(port, 'list', {}, { cookie, headers: { 'content-type': 'text/plain' } })
+  const badEnvelope = await call(port, 'list', { cookie, body: JSON.stringify({ type: 'client-request', method: 'list', payload: {} }) })
+  const badEnvelopeParsed = serverResponseSchema.parse(badEnvelope.json)
+  assert.equal(badEnvelopeParsed.rpcId, 'invalid-request')
+  assert.equal(badEnvelopeParsed.result.error.code, 'gateway/bad-request')
+  pass('real HTTP: an envelope without rpcId is a typed error, not a crash')
+
+  const wrongType = await call(port, 'list', { cookie, contentType: 'text/plain' })
   assert.equal(wrongType.status, 415)
   pass('real HTTP: a non-JSON content type is refused before dispatch')
 
-  const unknown = await rpc(port, 'nope', {}, { cookie })
-  assert.equal(unknown.status, 200, 'the channel owns every endpoint under its prefix')
-  assert.equal(unknown.json.result.ok, false)
-  assert.equal(unknown.json.result.error.code, 'rea-prompt-error')
-  pass('real HTTP: an unknown endpoint inside the channel is a typed error')
+  const notJson = await call(port, 'list', { cookie, body: 'not json' })
+  assert.equal(notJson.status, 400)
+  const wrongMethod = await call(port, 'list', { cookie, method: 'GET' })
+  assert.equal(wrongMethod.status, 405)
+  pass('real HTTP: malformed body and a non-POST method are refused', { notJson: notJson.status, wrongMethod: wrongMethod.status })
 
-  // fetch() refuses to set a Host header, so this one probe speaks raw http.
-  const untrusted = await rawRequest(port, 'list', { cookie, host: 'evil.example.test' })
+  const unknown = await call(port, 'nope', { cookie })
+  assert.equal(unknown.status, 404)
+  pass('real HTTP: an unknown endpoint is 404, never a prompt call')
+
+  const untrusted = await call(port, 'list', { cookie, host: 'evil.example.test' })
   assert.equal(untrusted.status, 403)
   pass('real HTTP: an untrusted Host header is refused by the Connection fence')
 
-  const noRpcId = await rpc(port, 'list', {}, { cookie, raw: JSON.stringify({ type: 'client-request', method: 'list', payload: {} }) })
-  assert.equal(noRpcId.json.result.ok, false)
-  assert.equal(noRpcId.json.result.error.code, 'gateway/bad-request')
-  pass('real HTTP: an invalid envelope is rejected with a typed error')
-
   await fiber.dispose()
-  const afterDispose = await rpc(port, 'list', {}, { cookie })
-  assert.notEqual(afterDispose.json?.result?.ok, true, 'the channel must be gone after disposal')
-  pass('real HTTP: plugin disposal removes the channel', { status: afterDispose.status })
+  const afterDispose = await call(port, 'list', { cookie })
+  assert.notEqual(afterDispose.status, 200, 'the route must be gone after disposal')
+  pass('real HTTP: plugin disposal removes the route', { status: afterDispose.status })
 } catch (error) {
   console.error(error)
   checks.push({ name: 'connection-scenario', pass: false, details: String(error?.message ?? error) })
