@@ -1,3 +1,8 @@
 
 node_modules/
+*.tgz
+verify/fixture/
+verification/*-result.json
+verification/upstream-tools.json
+verification/selected-inputs.json
 

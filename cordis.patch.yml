@@ -1,4 +1,4 @@
-# Bundle patch layer: this row loads the package's main entry as the host half.
-# There is no client half — REA is a host-only tool provider.
-- id: dsh-rea
-  name: dsh-rea
+# Insert the host-only plugin into the profile Loader tree.
+- insert:
+    - id: dsh-rea
+      name: dsh-rea

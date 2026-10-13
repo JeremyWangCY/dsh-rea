@@ -1,0 +1,163 @@
+{
+  "upstream": "6.4.0",
+  "node": "24.21.0",
+  "checks": [
+    {
+      "name": "reference: six original MCP prompt templates render (DSH UI not implemented)",
+      "pass": true
+    },
+    {
+      "name": "reference MCP successful Evidence",
+      "pass": true,
+      "details": {
+        "evidence_id": "ev_cc1622aee4367bd2e6bcd144c2cfc5bc6991c9ae30ab562d6b80fbc3b1c4b047"
+      }
+    },
+    {
+      "name": "native: 170 names / input schemas / descriptions identical",
+      "pass": true
+    },
+    {
+      "name": "native: upstream Skill v37 body and reference directory unchanged",
+      "pass": true
+    },
+    {
+      "name": "native: full content and structuredContent deeply equal to direct MCP",
+      "pass": true
+    },
+    {
+      "name": "native: inspect_analysis_view output parity",
+      "pass": true
+    },
+    {
+      "name": "native: trace_javascript_semantics output parity",
+      "pass": true
+    },
+    {
+      "name": "native: get_evidence_bundle output parity",
+      "pass": true
+    },
+    {
+      "name": "native: inspect_web_network_capture output parity",
+      "pass": true
+    },
+    {
+      "name": "native: open_binary upstream error parity",
+      "pass": true
+    },
+    {
+      "name": "native: open_binary output parity",
+      "pass": true
+    },
+    {
+      "name": "native: inspect_artifact output parity",
+      "pass": true
+    },
+    {
+      "name": "native: close_binary output parity",
+      "pass": true
+    },
+    {
+      "name": "native: aborted caller is an error, not silent success",
+      "pass": true
+    },
+    {
+      "name": "native: successful call after cancellation",
+      "pass": true
+    },
+    {
+      "name": "native: owned tools removed on dispose",
+      "pass": true
+    },
+    {
+      "name": "ptc: 170 names / input schemas / descriptions identical",
+      "pass": true
+    },
+    {
+      "name": "ptc: upstream Skill v37 body and reference directory unchanged",
+      "pass": true
+    },
+    {
+      "name": "PTC: complete canonical result deeply equal to direct MCP (no curated omissions)",
+      "pass": true
+    },
+    {
+      "name": "ptc: inspect_analysis_view output parity",
+      "pass": true
+    },
+    {
+      "name": "ptc: trace_javascript_semantics output parity",
+      "pass": true
+    },
+    {
+      "name": "ptc: get_evidence_bundle output parity",
+      "pass": true
+    },
+    {
+      "name": "ptc: inspect_web_network_capture output parity",
+      "pass": true
+    },
+    {
+      "name": "PTC: upstream typed error message remains available to program",
+      "pass": true
+    },
+    {
+      "name": "ptc: open_binary output parity",
+      "pass": true
+    },
+    {
+      "name": "ptc: inspect_artifact output parity",
+      "pass": true
+    },
+    {
+      "name": "ptc: close_binary output parity",
+      "pass": true
+    },
+    {
+      "name": "ptc: aborted caller is an error, not silent success",
+      "pass": true
+    },
+    {
+      "name": "ptc: successful call after cancellation",
+      "pass": true
+    },
+    {
+      "name": "ptc: owned tools removed on dispose",
+      "pass": true
+    },
+    {
+      "name": "startup failure is explicit and leaves no partial REA tool catalog",
+      "pass": true
+    }
+  ],
+  "modes": {
+    "native": {
+      "wireToolCount": 170,
+      "toolSchemaBytes": 436594,
+      "sdkTextBytes": 0,
+      "totalPromptBytes": 436826
+    },
+    "ptc": {
+      "wireToolCount": 1,
+      "toolSchemaBytes": 944,
+      "sdkTextBytes": 86633,
+      "totalPromptBytes": 89095
+    }
+  },
+  "limitations": [
+    "Catalog parity covers 170 tools; it is not execution coverage of all 170 operations.",
+    "Only deterministic JS/data-flow, one-record HAR, one-member ZIP and state/error/disposal scenarios were compared.",
+    "Cancellation tested before dispatch, not during a long-running engine operation.",
+    "Native external engines, live browser/Electron, ADB and image attachments were not exercised.",
+    "Six upstream MCP prompts and completions exist but DSH official tools bridge has no prompt UI.",
+    "PTC error contract differs from MCP: program receives a ToolCallError with upstream message.",
+    "Official bridge does not preserve MCP annotations as ToolRuntime metadata; native client metadata parity is not claimed.",
+    "Model reasoning/output equivalence is not established by transport tests."
+  ],
+  "hostServices": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.3",
+    "@deepseek-ai/dsh-skill": "0.1.5-rc.3",
+    "@deepseek-ai/dsh-code-runtime-worker-thread": "0.1.5-rc.3"
+  }
+}

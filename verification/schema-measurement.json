@@ -1,0 +1,22 @@
+{
+  "version": {
+    "name": "rea",
+    "version": "6.4.0"
+  },
+  "capabilities": {
+    "completions": {},
+    "prompts": {
+      "listChanged": true
+    },
+    "tools": {
+      "listChanged": true
+    }
+  },
+  "toolCount": 170,
+  "fullCatalogBytes": 1954683,
+  "modelInputBytes": 436594,
+  "inputSchemaBytes": 365817,
+  "outputSchemaBytes": 1494071,
+  "descriptionBytes": 59112,
+  "maxPublicNameLength": 48
+}
