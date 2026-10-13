@@ -75,6 +75,7 @@ async function mount(options = {}) {
   let sourceRegistration
   let injected
   const effects = []
+  const warnings = []
   const rpc = {
     async call(channel, method, args) {
       calls.push({ channel, method, args })
@@ -87,10 +88,22 @@ async function mount(options = {}) {
     inject(key, callback) { injected = key; return callback() },
     register(spec, component) { slotRegistration = { spec, component }; return () => {} },
   }
-  const inputTriggers = { registerSource(source) { sourceRegistration = source; return () => {} } }
+  const registry = options.registry ?? { source: undefined }
+  let registered
+  const inputTriggers = {
+    registerSource(source) {
+      // Real registry: a duplicate trigger+name throws, which is exactly what a
+      // hot re-apply of this bundle hits while the old source is still live.
+      if (registry.source !== undefined) throw new Error(`slash source "/${source.name}" is already registered`)
+      registry.source = source
+      registered = source
+      return () => {}
+    },
+  }
   const context = {
     effect(callback) { effects.push(callback()); return () => {} },
     get: (key) => (key === 'slots' ? slots : key === 'connection' ? { rpc } : key === 'inputTriggers' ? inputTriggers : undefined),
+    logger: { warn: message => warnings.push(String(message)) },
   }
   let factory
   let bundle
@@ -109,13 +122,17 @@ async function mount(options = {}) {
     delete globalThis.window
     delete globalThis.document
   }
-  return { module: bundle, calls, slotRegistration, sourceRegistration, injected, effects, rpc }
+  sourceRegistration = registered
+  return { module: bundle, calls, slotRegistration, sourceRegistration, injected, effects, rpc, warnings }
 }
 
 /** Named harness so the factory's require can reach it. */
 let harness
 function fresh() {
   harness = createReact()
+  // The bundle shares pick state across HMR generations on a global symbol, so
+  // each test starts from a clean generation exactly as a page reload would.
+  delete globalThis[Symbol.for('dsh-rea.prompt-state')]
   return harness
 }
 
@@ -244,6 +261,31 @@ test('a missing channel names the restart remedy instead of a bare transport sta
   const tree = await settle(harness, () => harness.render(harness.react.createElement(component, componentProps)))
   assert.match(alertText(tree), /重启一次 DSH/)
   assert.match(alertText(tree), /HTTP 404/)
+})
+
+test('an HMR re-apply keeps the surviving source and the live panel on one state', async () => {
+  fresh()
+  // One shared registry models the real client: generation 1 registers, then a
+  // hot re-apply of the same bundle calls registerSource again while generation
+  // 1 is still live, so the duplicate throws. Both generations are materialized
+  // inside ONE state generation, exactly as HMR does (no page reload).
+  const registry = {}
+  const first = await mount({ registry, responses: { list: () => listReply } })
+  assert.ok(first.sourceRegistration, 'generation 1 registers the source')
+  const second = await mount({ registry, responses: { list: () => listReply } })
+  assert.equal(second.sourceRegistration, undefined, 'the duplicate registration is swallowed, not fatal')
+  assert.equal(second.warnings.length, 1, 'the duplicate is reported once')
+  assert.match(second.warnings[0], /already registered/)
+  const component = second.slotRegistration.component
+  const componentProps = props()
+  const renderTree = () => harness.render(harness.react.createElement(component, componentProps))
+  assert.equal(renderTree(), null, 'the new panel starts closed')
+  // The SURVIVING (generation 1) source handles the pick...
+  first.sourceRegistration.onPick({ candidate: { name: 'rea:trace_crash' }, session, position: 'leading', via: 'menu', span: {} })
+  // ...and the NEW panel must open on it, because both generations share state.
+  const tree = await settle(harness, renderTree)
+  assert.ok(byLabel(tree, 'crash'), 'the live panel sees the surviving source\'s pick')
+  assert.equal(byText(tree, '生成预览').props.disabled, true, 'required argument still gates')
 })
 
 test('the bundled client keeps its closure-factory handoff and own style tag', async () => {
