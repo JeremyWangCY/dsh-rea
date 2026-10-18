@@ -2,6 +2,45 @@
 
 把 [REA](https://github.com/morluto/rea) **6.4.0 原版 MCP 全量工具**及同版本 Skill 接入 DeepSeek Harness。[English](README.md)
 
+**默认按需加载**：170 个工具的 schema 与 Skill 只在运行 `/rea` 之后才进入请求；在那之前它们不占上下文（native 模式实测 530,559 字节 / 每次请求，PTC 模式约 67 KB）。
+
+## 按需加载（v0.4 起的默认行为）
+
+工具与 Skill 现在是**按 agent 惰性可见**的，协议与进程都不变：
+
+- MCP 连接、单个 REA 进程、六个原版 prompt 与补全**始终在线**——`/` 菜单随时可用，选模板不依赖是否已解锁。
+- 每个 agent 默认带一条 `tools.restrict({ deny })` 掩码，点掉当前 `mcp__rea__*` 的全部名称。原生 schema 与 PTC 的 SDK 提示词都从同一个 scope 视图投影，所以两处一起消失。
+- Skill 也按 agent 注册，解锁时一并出现；未解锁的会话连目录行都不付。
+- 桥接重新同步（`notifications/tools/list_changed`）后掩码自动重建，不会漏掉新一代名称；已解锁的 agent 不会被中途收走工具。
+- 恢复的会话按日志里已有的 `command/run` 重新判定，昨天 `/rea` 过的会话今天不会又被藏起来。
+
+### `/rea` 是开关，关键词不是
+
+```text
+/rea                  只解锁，然后等你说要做什么
+/rea 看看这个 apk      解锁，并把这句话原样发给模型
+/rea status           查看当前是 hidden 还是 revealed
+```
+
+命令会先解锁，再把 `/rea` 后面的话**作为一条普通用户消息**投递给模型——因为命令本身不会进入模型，不转发就等于把你的请求吞掉。
+
+**为什么不靠关键词自动判断**：判断只能靠猜，猜错的代价是整套目录（native 模式 530 KB）。而且它在最贵的地方必然猜错——讨论这个门禁本身，就一定会说出它的触发词。所以 `/rea` 是权威开关。
+
+确实还留了关键词路径，需要显式打开：
+
+```yaml
+- id: dsh-rea
+  config:
+    keywordUnlock: true
+```
+
+回到旧行为（常驻全量）：
+
+```yaml
+- id: dsh-rea
+  config:
+    exposure: always
+```
 ## 保留什么
 
 - **170 个原版工具，一个不删**：反编译、交叉引用、字符串搜索、Android/ADB、托管代码、JavaScript/Electron、运行时分析等。取消自行设计的 entry/navigate/analyze 档位。
@@ -26,7 +65,7 @@ REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、�
 - 预览不执行任何分析；每次工具调用仍然由模型显式决定。
 - 插入只是一次草稿写入：面板不会提交、不会发送、不会替你选目标，需自行编辑或发送。
 - 连接换代后到达的迟到结果会被拒绝，过期模板不可能被插入。
-- 菜单分组只在 Web 界面存在；CLI/无头 profile 仍保留全部 170 个工具和 Skill，只是没有这个 `/` 分组。
+- 菜单分组只在 Web 界面存在；CLI/无头 profile 走同一套按需加载规则，只是没有这个 `/` 分组。
 
 由于 DSH 会在 Host 进程生命周期内缓存每个包的客户端元数据，升级后需要**重启一次 DSH**：已在旧版本挂载过 `dsh-rea` 的运行中 Host 已把它缓存为“仅宿主包”，重启前不会提供新的浏览器 bundle。无需改任何配置。
 
@@ -42,11 +81,12 @@ github:JeremyWangCY/dsh-rea
 
 ## 配置
 
-默认全量，不强制改变 DSH 对其他工具的 native/PTC 呈现：
+默认按需加载，不强制改变 DSH 对其他工具的 native/PTC 呈现：
 
 ```yaml
 - id: dsh-rea
   config:
+    exposure: lazy
     serverName: rea
     toolCallTimeoutMs: 300000
     # 如果宿主可执行文件无法启动 REA 的分析子进程，显式指定受支持 Node：
@@ -56,6 +96,8 @@ github:JeremyWangCY/dsh-rea
 | 字段 | 默认 | 含义 |
 |---|---|---|
 | enabled | true | 是否启用 |
+| exposure | lazy | `lazy`：目录按 agent 惰性加载，运行 `/rea` 才可见；`always`：常驻全量（v0.3 行为） |
+| keywordUnlock | false | 是否额外允许“真实用户消息命中逆向关键词”自动解锁。默认关闭，见上文原因 |
 | serverName | rea | 官方桥接命名空间 |
 | tools | all | 兼容标记；不再支持删减子集 |
 | nodeCommand | 空 | 默认宿主可执行文件；Electron 加 ELECTRON_RUN_AS_NODE=1；必要时指定独立 Node |
@@ -82,7 +124,7 @@ Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插�
 
 ## 已验证与未验证
 
-`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：170 个名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`pnpm test` 共 13 项单元/面板测试，`pnpm verify` 为 35 项差分校验。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
+`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：170 个名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发与失败处理；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 46 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 7 项按需加载校验。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
 
 **未声称**：170 个操作全部实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
 

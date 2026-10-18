@@ -1,14 +1,14 @@
 {
   "name": "dsh-rea",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "exports": { ".": "./lib/index.js", "./client": "./lib/client.js", "./package.json": "./package.json" },
-  "description": "Full upstream REA MCP tools and version-matched reverse-engineering skill for DeepSeek Harness",
+  "description": "Full upstream REA MCP tools and version-matched reverse-engineering skill for DeepSeek Harness, revealed on demand with /rea",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
   "files": ["lib", "cordis.patch.yml", "README.md", "README.zh.md", "LICENSE"],
   "repository": { "type": "git", "url": "git+https://github.com/JeremyWangCY/dsh-rea.git" },
-  "scripts": { "test": "node --test test/*.test.mjs", "verify": "node verify/integration.mjs", "verify:connection": "node verify/connection.mjs" },
+  "scripts": { "test": "node --test test/*.test.mjs", "verify": "node verify/integration.mjs", "verify:connection": "node verify/connection.mjs", "verify:lazy": "node verify/lazy-exposure.mjs" },
   "dependencies": { "rea-agents": "6.4.0", "js-yaml": "^4.1.0", "semver": "^7.7.0", "@modelcontextprotocol/sdk": "1.30.0", "zod": "^4.4.3" },
   "devDependencies": {
     "@deepseek-ai/dsh-mcp-client": "0.1.5-rc.3",

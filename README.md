@@ -2,6 +2,45 @@
 
 Full [REA](https://github.com/morluto/rea) 6.4.0 MCP tools and its original version-matched skill for DeepSeek Harness. English | [中文](README.zh.md)
 
+**Lazy by default:** the 170 tool schemas and the skill stay out of a request until you run `/rea` — 530,559 bytes per request saved in native mode (~67 KB in PTC) when they are not needed.
+
+## Lazy exposure (default since v0.4)
+
+Tools and the skill are **per-agent lazily visible**; the protocol and the process do not change:
+
+- The MCP connection, the single REA process, all six original prompts and completions are **always live** — the `/` menu works whether or not a session has revealed the catalog.
+- Each agent starts with a `tools.restrict({ deny })` mask naming every current `mcp__rea__*` tool. Native schemas and the generated PTC SDK prompt are both projected from the same scope view, so both lose the catalog together.
+- The skill is registered per agent too, so it appears at reveal time and costs nothing in sessions that never reveal.
+- A bridge re-sync (`notifications/tools/list_changed`) rebuilds every mask, so a new tool generation cannot slip through; agents that already revealed are never re-masked mid-task.
+- A resumed session is judged from the `command/run` records already in its log, so a session where you ran `/rea` yesterday is not hidden again today.
+
+### `/rea` is the switch; keywords are not
+
+```text
+/rea                      reveal only, then wait for the request
+/rea look at this apk      reveal, and forward that text to the model verbatim
+/rea status                report whether the catalog is hidden or revealed
+```
+
+The command reveals first, then queues everything after `/rea` as an **ordinary user message** — a resolved command never reaches the model, so not forwarding it would silently swallow your request.
+
+**Why not infer from keywords:** inference is a guess, and a wrong guess costs the whole catalog (530 KB in native mode). It is also wrong precisely where it is most expensive — discussing this gate necessarily names its trigger words. `/rea` is the user saying it outright.
+
+A keyword path still exists, opt-in:
+
+```yaml
+- id: dsh-rea
+  config:
+    keywordUnlock: true
+```
+
+Return to the previous always-on catalogue:
+
+```yaml
+- id: dsh-rea
+  config:
+    exposure: always
+```
 ## What is preserved
 
 - All **170 upstream tools**, including navigation, decompilation, Android/ADB, managed code, JavaScript/Electron and runtime analysis. No invented entry/navigate/analyze tiers.
@@ -26,7 +65,7 @@ Fidelity rules of that panel:
 - Preview never executes analysis; every tool call stays a separate, explicit model decision.
 - Insertion is a plain draft write. The panel never submits, never sends and never selects a target; you edit or send the draft yourself.
 - A generation guard rejects a render whose answer arrives after the connection changed, so a stale template can never be inserted.
-- The menu group is Web-only. CLI/headless profiles keep all 170 tools and the skill; only the `/` group is absent.
+- The menu group is Web-only. CLI/headless profiles follow the same lazy rules; only the `/` group is absent.
 
 Because DSH caches each package's client metadata for the lifetime of a Host process, adding this entry requires **one DSH restart** after upgrading: a running Host that already mounted `dsh-rea` before this version has cached it as a host-only package and will not serve the new bundle until it restarts. No configuration change is needed.
 
@@ -42,11 +81,12 @@ For local development, install the absolute directory of this checkout through t
 
 ## Configuration
 
-The bundle inserts the host plugin. Defaults expose everything and leave DSH's native/PTC presentation untouched:
+The bundle inserts the host plugin. Defaults load the catalog on demand and leave DSH's native/PTC presentation untouched:
 
 ```yaml
 - id: dsh-rea
   config:
+    exposure: lazy
     serverName: rea
     toolCallTimeoutMs: 300000
     # Optional supported standalone Node executable:
@@ -56,6 +96,8 @@ The bundle inserts the host plugin. Defaults expose everything and leave DSH's n
 | Field | Default | Meaning |
 |---|---|---|
 | enabled | true | Enable the plugin |
+| exposure | lazy | `lazy` exposes the catalogue per agent and only after `/rea`; `always` restores the v0.3 always-on catalogue |
+| keywordUnlock | false | Also let a real user message reveal the catalogue by mentioning reverse engineering. Off by default; see above |
 | serverName | rea | Official bridge namespace |
 | tools | all | Compatibility marker; subsets are no longer supported |
 | nodeCommand | empty | Host executable; Electron uses `ELECTRON_RUN_AS_NODE=1`. Set an explicit supported Node if child analysis workers cannot use the host executable |
@@ -82,7 +124,7 @@ Use the original skill's routing, Evidence and provider-recovery instructions. R
 
 ## Verification and limits
 
-`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: all 170 names/descriptions/input schemas, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the actual `/` source: idle silence (the session slot renders nothing and no request is sent), source registration, candidate filtering, a `handled` pick that writes no draft, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, error surfacing, and the post-upgrade restart hint. `verify/connection.mjs` mounts the real installed `WebServer` + `Connection` and speaks the real wire: 401 without the browser session, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus envelope, content-type, Host-fence and disposal refusals. `pnpm test` runs 10 unit/harness tests; `pnpm verify` runs the 35-check differential suite. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
+`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: all 170 names/descriptions/input schemas, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the actual `/` source: idle silence (the session slot renders nothing and no request is sent), source registration, candidate filtering, a `handled` pick that writes no draft, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, error surfacing, and the post-upgrade restart hint. `verify/connection.mjs` mounts the real installed `WebServer` + `Connection` and speaks the real wire: 401 without the browser session, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus envelope, content-type, Host-fence and disposal refusals. `test/gate.test.mjs` covers per-agent masking, re-sync, resume behaviour and the default "keywords do not reveal" policy; `test/command.test.mjs` covers `/rea` directive parsing, forwarding and failure handling. `verify/lazy-exposure.mjs` mounts the real `dsh-system-prompt`/`dsh-tools`/`dsh-skill` services and measures that a gated agent's assembly carries zero `mcp__rea__` schemas while the bridge keeps its full generation installed. `pnpm test` runs 46 unit/harness tests; `pnpm verify` runs the 35-check differential suite and `pnpm verify:lazy` the 7-check lazy-exposure suite. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
 
 Not claimed: all 170 operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits; exhaustive completion coverage for every external provider. External providers require task-specific verification.
 

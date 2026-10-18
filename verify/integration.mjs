@@ -108,7 +108,10 @@ try {
    // need to deliver one in-process request each.
    ctx.provide('connection',{requestRejection:()=>undefined})
    ctx.provide('webServer',{register(route){promptRoute=route;return ()=>{promptRoute=undefined}}})
-   const fiber=await ctx.plugin(plugin,{})
+   // This suite compares the FULL catalogue against a direct MCP client, so it
+   // pins the always-on exposure; lazy exposure has its own suite
+   // (verify/lazy-exposure.mjs), which measures the gated assembly instead.
+   const fiber=await ctx.plugin(plugin,{exposure:'always'})
    const requestPrompt=async(method,args={})=>{
     assert.ok(promptRoute,'the plugin registered no prompt route')
     const body=JSON.stringify({type:'client-request',rpcId:`verify-${method}`,method,payload:args})
