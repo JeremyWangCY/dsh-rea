@@ -204,7 +204,7 @@ test('an agent gated before the first sync is masked once names arrive', () => {
 
 test('a restored session that already asked stays unlocked (keyword unlocking on)', () => {
   const h = harness(['mcp__rea__a'])
-  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, { keywordUnlock: true })
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, { keywordUnlock: true, keywordCategories: ['all'] })
   const history = [{ type: 'user/message', data: message('decompile this dll') }]
   const agent = agentFor(h, 'session-1', history)
   assert.equal(gate.gateOrRestore(agent), false)
@@ -224,7 +224,7 @@ test('a restored session with no request stays gated', () => {
 test('installGate unmasks on a real user prompt when keyword unlocking is on', () => {
   const h = harness(['mcp__rea__a'])
   const unlocked = []
-  const handle = installGate(h.ctx, { serverName: 'rea', keywordUnlock: true, onUnlock: (agent) => unlocked.push(agent.id) })
+  const handle = installGate(h.ctx, { serverName: 'rea', keywordUnlock: true, keywordCategories: ['all'], onUnlock: (agent) => unlocked.push(agent.id) })
   const agent = agentFor(h, 'session-1')
   h.ctx.emit('agent/created', { agent })
   assert.equal(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
@@ -455,7 +455,7 @@ test('an unreadable history fails closed and keeps the catalog hidden', () => {
 
 test('a history that only ever ran /rea status stays hidden but keyword hits still count', () => {
   const h = harness(['mcp__rea__a'])
-  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, { keywordUnlock: true })
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, { keywordUnlock: true, keywordCategories: ['all'] })
   const keyword = agentFor(h, 's2', [reaRun('status'), { type: 'user/message', data: message('decompile this dll') }])
   assert.equal(gate.gateOrRestore(keyword), false)
 })
@@ -491,4 +491,399 @@ test('a synchronous unlock hook failure is logged and does not abort the unlock'
   assert.equal(gate.unlock(agent), true)
   assert.equal(h.state.warnings.length, 1)
   assert.match(h.state.warnings[0], /unlock hook failed/u)
+})
+
+// ---------------------------------------------------------------------------
+// Category-scoped reveal
+// ---------------------------------------------------------------------------
+
+/** Names spread over four categories; the stub keeps these tests off the real rule map. */
+const SPREAD = ['mcp__rea__n1', 'mcp__rea__n2', 'mcp__rea__a1', 'mcp__rea__w1', 'mcp__rea__c1']
+const STUB_CATEGORY = { n1: 'native', n2: 'native', a1: 'android', w1: 'web', c1: 'capture' }
+const stubCategoryOf = (name) => STUB_CATEGORY[name] ?? 'other'
+
+/**
+ * Build a gate over the spread names with the stub category map.
+ * @param extra - constructor options layered over the stub.
+ * @param names - registered global tool names.
+ * @returns the harness, gate and a log of hook calls.
+ */
+function spreadGate(extra = {}, names = SPREAD) {
+  const h = harness(names)
+  const hooks = []
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, (agent) => hooks.push('unlock:' + agent.id), {
+    onRelock: (agent) => hooks.push('relock:' + agent.id),
+    categoryOf: stubCategoryOf,
+    ...extra,
+  })
+  return { h, gate, hooks }
+}
+
+/** The names currently denied to one agent, sorted. */
+function denied(h, agent) {
+  return [...(h.state.restrictions.get(agent.scope) ?? [])].sort()
+}
+
+/** One stored tool/call event the way DSH records it (arguments is a JSON string). */
+function toolCall(callId, name, args) {
+  return { type: 'tool/call', data: { callId, name, arguments: typeof args === 'string' ? args : JSON.stringify(args) } }
+}
+
+/** One stored tool/result event. */
+function toolResult(callId, isError = false) {
+  return { type: 'tool/result', data: { message: { toolCallId: callId, isError } } }
+}
+
+test('reveal hidden -> partial denies exactly the other categories and fires onUnlock once', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  const result = gate.reveal(agent, ['native'])
+  assert.deepEqual(denied(h, agent), ['mcp__rea__a1', 'mcp__rea__c1', 'mcp__rea__w1'])
+  assert.deepEqual(result, { state: 'partial', categories: ['native'], added: ['native'], denied: [] })
+  assert.deepEqual(hooks, ['unlock:s1'])
+  assert.equal(gate.isGated(agent), true)
+  assert.equal(gate.unlockedCount, 1)
+  assert.equal(gate.partialCount, 1)
+  assert.notEqual(h.ctx.tools.get('mcp__rea__n1', agent.scope), undefined)
+  assert.equal(h.ctx.tools.get('mcp__rea__w1', agent.scope), undefined)
+})
+
+test('reveal on top of a partial view rebuilds one mask and does not fire onUnlock again', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native'])
+  const result = gate.reveal(agent, ['web', 'native'])
+  assert.deepEqual(denied(h, agent), ['mcp__rea__a1', 'mcp__rea__c1'])
+  assert.equal(h.state.live.size, 1, 'the superseded mask is released')
+  assert.deepEqual(result.added, ['web'])
+  assert.deepEqual(result.categories, ['native', 'web'])
+  assert.deepEqual(hooks, ['unlock:s1'])
+})
+
+test('revealing categories that are already visible is a no-op', () => {
+  const { h, gate } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native', 'web'])
+  const before = h.state.restrictions.get(agent.scope)
+  const result = gate.reveal(agent, ['native'])
+  assert.deepEqual(result.added, [])
+  assert.equal(h.state.restrictions.get(agent.scope), before, 'the mask object is untouched')
+  assert.equal(h.state.live.size, 1)
+})
+
+test('reveal(all) installs no mask and counts as fully revealed', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  const result = gate.reveal(agent, ['all'])
+  assert.equal(h.state.restrictions.has(agent.scope), false)
+  assert.equal(h.state.live.size, 0)
+  assert.equal(result.state, 'all')
+  assert.equal(gate.isGated(agent), false)
+  assert.deepEqual(hooks, ['unlock:s1'])
+  assert.equal(gate.partialCount, 0)
+  assert.equal(gate.unlockedCount, 1)
+})
+
+test('partial -> all drops the mask without a second onUnlock', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native'])
+  gate.reveal(agent, ['all'])
+  assert.equal(h.state.live.size, 0)
+  assert.deepEqual(hooks, ['unlock:s1'])
+  assert.equal(gate.unlockedCount, 1)
+  assert.equal(gate.partialCount, 0)
+})
+
+test('unlock() on a partial agent is a full reveal', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native'])
+  assert.equal(gate.unlock(agent), true)
+  assert.equal(h.state.live.size, 0)
+  assert.equal(gate.visibility(agent).state, 'all')
+  assert.deepEqual(hooks, ['unlock:s1'])
+})
+
+test('setCategories replaces the set and an empty set relocks', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native', 'web'])
+  const replaced = gate.setCategories(agent, ['android'])
+  assert.deepEqual(replaced.categories, ['android'])
+  assert.deepEqual(denied(h, agent), ['mcp__rea__c1', 'mcp__rea__n1', 'mcp__rea__n2', 'mcp__rea__w1'])
+  assert.equal(h.state.live.size, 1)
+  const emptied = gate.setCategories(agent, [])
+  assert.equal(emptied.state, 'hidden')
+  assert.equal(denied(h, agent).length, SPREAD.length)
+  assert.deepEqual(hooks, ['unlock:s1', 'relock:s1'])
+  assert.equal(gate.unlockedCount, 0)
+})
+
+test('relock from a partial view restores the full mask, fires onRelock and uncounts the agent', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native'])
+  assert.equal(gate.relock(agent), true)
+  assert.equal(denied(h, agent).length, SPREAD.length)
+  assert.equal(h.state.live.size, 1)
+  assert.deepEqual(hooks, ['unlock:s1', 'relock:s1'])
+  assert.equal(gate.unlockedCount, 0)
+  assert.equal(gate.partialCount, 0)
+  assert.equal(gate.visibility(agent).state, 'hidden')
+  // A second relock of a hidden agent is not a transition.
+  gate.relock(agent)
+  assert.deepEqual(hooks, ['unlock:s1', 'relock:s1'])
+})
+
+test('alwaysDeny is never revealed and is reported', () => {
+  const { h, gate } = spreadGate({ alwaysDeny: ['capture'] })
+  const agent = agentFor(h, 's1')
+  const result = gate.reveal(agent, ['capture', 'native'])
+  assert.deepEqual(result.denied, ['capture'])
+  assert.deepEqual(result.categories, ['native'])
+  assert.equal(h.ctx.tools.get('mcp__rea__c1', agent.scope), undefined)
+  // Asking only for the denied category leaves the agent hidden.
+  const other = agentFor(h, 's2')
+  const none = gate.reveal(other, ['capture'])
+  assert.equal(none.state, 'hidden')
+  assert.deepEqual(none.denied, ['capture'])
+  assert.equal(gate.unlockedCount, 1)
+})
+
+test('a fully revealed agent still has alwaysDeny masked, across generations', () => {
+  const { h, gate } = spreadGate({ alwaysDeny: ['capture'] })
+  const agent = agentFor(h, 's1')
+  const result = gate.reveal(agent, ['all'])
+  assert.equal(result.state, 'all')
+  assert.deepEqual(result.denied, ['capture'])
+  assert.deepEqual(denied(h, agent), ['mcp__rea__c1'])
+  assert.equal(gate.visibility(agent).categories.includes('capture'), false)
+  // The bridge swaps generations: the capture tool is renamed.
+  h.state.names = ['mcp__rea__n1', 'mcp__rea__c2']
+  STUB_CATEGORY.c2 = 'capture'
+  try {
+    assert.equal(gate.resync(), 1)
+    assert.deepEqual(denied(h, agent), ['mcp__rea__c2'])
+  } finally {
+    delete STUB_CATEGORY.c2
+  }
+})
+
+test('a new generation recomputes a partial agent against the new names', () => {
+  const { h, gate } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native'])
+  STUB_CATEGORY.n3 = 'native'
+  STUB_CATEGORY.w2 = 'web'
+  try {
+    h.state.names = ['mcp__rea__n3', 'mcp__rea__w2', 'mcp__rea__a1']
+    assert.equal(gate.resync(), 1)
+    assert.deepEqual(denied(h, agent), ['mcp__rea__a1', 'mcp__rea__w2'])
+    assert.equal(h.state.live.size, 1)
+  } finally {
+    delete STUB_CATEGORY.n3
+    delete STUB_CATEGORY.w2
+  }
+})
+
+test('revealing for one agent leaves a concurrent hidden agent fully masked', () => {
+  const { h, gate } = spreadGate()
+  const a = agentFor(h, 'a')
+  const b = agentFor(h, 'b')
+  gate.gate(b)
+  gate.reveal(a, ['native'])
+  assert.equal(denied(h, b).length, SPREAD.length)
+  assert.equal(gate.visibility(b).state, 'hidden')
+  assert.equal(gate.visibility(a).state, 'partial')
+  assert.equal(gate.unlockedCount, 1)
+})
+
+test('revealing for an agent the gate has not seen gates it first', () => {
+  const { h, gate } = spreadGate()
+  const agent = agentFor(h, 'fresh')
+  assert.equal(gate.isGated(agent), false)
+  gate.reveal(agent, ['web'])
+  assert.equal(gate.isGated(agent), true)
+  assert.equal(h.state.live.size, 1)
+})
+
+test('forget removes a partial agent from every table', () => {
+  const { h, gate } = spreadGate()
+  const agent = agentFor(h, 's1')
+  gate.reveal(agent, ['native'])
+  gate.forget(agent)
+  assert.equal(gate.partialCount, 0)
+  assert.equal(gate.unlockedCount, 0)
+  assert.equal(gate.gatedCount, 0)
+  assert.equal(gate.visibility(agent).state, 'hidden')
+})
+
+test('visibility reports hidden, partial and all', () => {
+  const { h, gate } = spreadGate({ alwaysDeny: ['capture'] })
+  const agent = agentFor(h, 's1')
+  assert.deepEqual(gate.visibility(agent), { state: 'hidden', categories: [] })
+  gate.gate(agent)
+  assert.deepEqual(gate.visibility(agent), { state: 'hidden', categories: [] })
+  gate.reveal(agent, ['web', 'native'])
+  assert.deepEqual(gate.visibility(agent), { state: 'partial', categories: ['native', 'web'] })
+  gate.reveal(agent, ['all'])
+  const full = gate.visibility(agent)
+  assert.equal(full.state, 'all')
+  assert.equal(full.categories.includes('native') && full.categories.includes('other'), true)
+  assert.equal(full.categories.includes('capture'), false)
+})
+
+test('categoryBytes totals the live catalog per category in the measured projection', () => {
+  const h = harness([])
+  h.ctx.tools.schemas = () => [
+    { name: 'mcp__rea__n1', description: 'one', parameters: { type: 'object' } },
+    { name: 'mcp__rea__n2', description: 'two', parameters: { type: 'object' } },
+    { name: 'mcp__rea__w1', description: 'web', parameters: {} },
+    { name: 'read' },
+  ]
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, { categoryOf: stubCategoryOf })
+  const sizes = gate.categoryBytes()
+  assert.deepEqual([...sizes.keys()], ['native', 'web'])
+  const native = Buffer.byteLength(JSON.stringify({ name: 'mcp__rea__n1', description: 'one', parameters: { type: 'object' } }))
+    + Buffer.byteLength(JSON.stringify({ name: 'mcp__rea__n2', description: 'two', parameters: { type: 'object' } }))
+  assert.deepEqual(sizes.get('native'), { tools: 2, bytes: native })
+  assert.equal(sizes.get('web').tools, 1)
+})
+
+test('a keyword unlock reveals keywordCategories only', () => {
+  const h = harness(SPREAD)
+  const handle = installGate(h.ctx, { serverName: 'rea', keywordUnlock: true, keywordCategories: ['native'], categoryOf: stubCategoryOf })
+  const agent = agentFor(h, 's1')
+  h.ctx.emit('agent/created', { agent })
+  h.ctx.emit('agent/inbox/inserted', { agent, message: message('decompile this dll') })
+  assert.deepEqual(handle.gate.visibility(agent), { state: 'partial', categories: ['native'] })
+  assert.equal(h.ctx.tools.get('mcp__rea__w1', agent.scope), undefined)
+  handle.dispose()
+})
+
+// --- Replay (historyState) -------------------------------------------------
+
+/** Replay one history through a fresh gate. */
+function replay(history, options = {}) {
+  const { h, gate } = spreadGate(options)
+  return gate.historyState(agentFor(h, 's1', history))
+}
+
+test('replay: /rea and /rea on reveal defaultCategories, /rea <request> too', () => {
+  for (const args of ['', ' on', ' look at this binary', ' on this binary']) {
+    assert.deepEqual(replay([reaRun(args)], { defaultCategories: ['native'] }), { state: 'partial', categories: ['native'] }, JSON.stringify(args))
+  }
+  assert.equal(replay([reaRun('')]).state, 'all', 'the default default is every category')
+})
+
+test('replay: /rea on <cats> replaces, /rea add <cats> joins', () => {
+  assert.deepEqual(replay([reaRun(' on native,android')]), { state: 'partial', categories: ['native', 'android'] })
+  assert.deepEqual(replay([reaRun(' on native'), reaRun(' on web')]), { state: 'partial', categories: ['web'] })
+  assert.deepEqual(replay([reaRun(' on native'), reaRun(' add web android')]), { state: 'partial', categories: ['native', 'android', 'web'] })
+  assert.equal(replay([reaRun(' on all')]).state, 'all')
+})
+
+test('replay: off hides and status is ignored', () => {
+  assert.equal(replay([reaRun(' on native'), reaRun(' off')]).state, 'hidden')
+  assert.deepEqual(replay([reaRun(' on native'), reaRun(' status')]), { state: 'partial', categories: ['native'] })
+  assert.equal(replay([reaRun(' status')]).state, 'hidden')
+})
+
+test('replay: order decides - on native, add web, off, add android leaves android', () => {
+  const history = [reaRun(' on native'), reaRun(' add web'), reaRun(' off'), reaRun(' add android')]
+  assert.deepEqual(replay(history), { state: 'partial', categories: ['android'] })
+})
+
+test('replay: a list with an unknown category was refused live, so it is skipped', () => {
+  assert.deepEqual(replay([reaRun(' on native'), reaRun(' add web,bogus')]), { state: 'partial', categories: ['native'] })
+})
+
+test('replay: a successful rea_load joins its categories', () => {
+  const history = [reaRun(' on native'), toolCall('c1', 'rea_load', { categories: ['web'] }), toolResult('c1')]
+  assert.deepEqual(replay(history), { state: 'partial', categories: ['native', 'web'] })
+})
+
+test('replay: a failed rea_load and a call with no result are ignored', () => {
+  const history = [
+    toolCall('c1', 'rea_load', { categories: ['web'] }), toolResult('c1', true),
+    toolCall('c2', 'rea_load', { categories: ['android'] }),
+  ]
+  assert.equal(replay(history).state, 'hidden')
+})
+
+test('replay: a result is paired by call id, not by position', () => {
+  const history = [
+    toolCall('a', 'rea_load', { categories: ['web'] }),
+    toolCall('b', 'rea_load', { categories: ['android'] }),
+    toolResult('b'),
+  ]
+  assert.deepEqual(replay(history), { state: 'partial', categories: ['android'] })
+})
+
+test('replay: malformed rea_load arguments are ignored with a warning', () => {
+  const { h, gate } = spreadGate()
+  const history = [reaRun(' on native'), toolCall('c1', 'rea_load', '{not json'), toolResult('c1')]
+  assert.deepEqual(gate.historyState(agentFor(h, 's1', history)), { state: 'partial', categories: ['native'] })
+  assert.equal(h.state.warnings.some((text) => text.includes('unreadable arguments')), true)
+})
+
+test('replay: a successful rea_unload hides, and a later load starts over', () => {
+  const history = [
+    reaRun(' on native'),
+    toolCall('u', 'rea_unload', '{}'), toolResult('u'),
+    toolCall('l', 'rea_load', { categories: ['web'] }), toolResult('l'),
+  ]
+  assert.deepEqual(replay(history), { state: 'partial', categories: ['web'] })
+  assert.equal(replay([reaRun(' on native'), toolCall('u', 'rea_unload', '{}'), toolResult('u')]).state, 'hidden')
+})
+
+test('replay: other tools and other commands are not REA state', () => {
+  const history = [
+    toolCall('x', 'read', { categories: ['web'] }), toolResult('x'),
+    { type: 'command/run', data: { name: 'goal', args: ' on native', source: { kind: 'user' } } },
+  ]
+  assert.equal(replay(history).state, 'hidden')
+})
+
+test('replay: a keyword message reveals keywordCategories only when keyword unlock is on', () => {
+  const history = [{ type: 'user/message', data: message('decompile this dll') }]
+  assert.deepEqual(replay(history, { keywordUnlock: true, keywordCategories: ['web'] }), { state: 'partial', categories: ['web'] })
+  assert.equal(replay(history, { keywordCategories: ['web'] }).state, 'hidden')
+})
+
+test('replay: alwaysDeny categories are dropped from the replayed view', () => {
+  assert.deepEqual(replay([reaRun(' on native,capture')], { alwaysDeny: ['capture'] }), { state: 'partial', categories: ['native'] })
+  assert.equal(replay([reaRun(' on capture')], { alwaysDeny: ['capture'] }).state, 'hidden')
+})
+
+test('replay: unreadable history is hidden', () => {
+  const { h, gate } = spreadGate()
+  const agent = agentFor(h, 's1')
+  agent.session.snapshotEvents = () => { throw new Error('boom') }
+  assert.deepEqual(gate.historyState(agent), { state: 'hidden', categories: [] })
+})
+
+test('historyUnlocks stays a thin wrapper over historyState', () => {
+  const { h, gate } = spreadGate()
+  assert.equal(gate.historyUnlocks(agentFor(h, 'a', [reaRun(' on native')])), true)
+  assert.equal(gate.historyUnlocks(agentFor(h, 'b', [reaRun(' off')])), false)
+})
+
+test('gateOrRestore restores a partial view with one mask and one onUnlock', () => {
+  const { h, gate, hooks } = spreadGate()
+  const agent = agentFor(h, 's1', [reaRun(' on native'), reaRun(' add web')])
+  assert.equal(gate.gateOrRestore(agent), true)
+  assert.deepEqual(denied(h, agent), ['mcp__rea__a1', 'mcp__rea__c1'])
+  assert.equal(h.state.live.size, 1)
+  assert.deepEqual(hooks, ['unlock:s1'])
+  assert.equal(gate.partialCount, 1)
+})
+
+test('gateOrRestore of a full-reveal history under alwaysDeny keeps that category masked', () => {
+  const { h, gate } = spreadGate({ alwaysDeny: ['capture'] })
+  const agent = agentFor(h, 's1', [reaRun(' on all')])
+  assert.equal(gate.gateOrRestore(agent), false)
+  assert.deepEqual(denied(h, agent), ['mcp__rea__c1'])
+  assert.equal(gate.visibility(agent).state, 'all')
 })
