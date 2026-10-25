@@ -1,8 +1,8 @@
 # dsh-rea
 
-把 [REA](https://github.com/morluto/rea) **6.4.0 原版 MCP 全量工具**及同版本 Skill 接入 DeepSeek Harness。[English](README.md)
+把 [REA](https://github.com/morluto/rea) **6.7.0 原版 MCP 全量工具**及同版本 Skill 接入 DeepSeek Harness。[English](README.md)
 
-**默认按需加载**：170 个工具的 schema 与 Skill 只在运行 `/rea` 之后才进入请求；在那之前它们不占上下文（native 模式实测 530,559 字节 / 每次请求，PTC 模式约 67 KB）。
+**默认按需加载**：207 个工具的 schema 与 Skill 只在运行 `/rea` 之后才进入请求；在那之前它们不占上下文（native 模式实测 775,022 字节 / 每次请求，PTC 模式约 67 KB）。
 
 ## 按需加载（v0.4 起的默认行为）
 
@@ -10,19 +10,23 @@
 
 - MCP 连接、单个 REA 进程、六个原版 prompt 与补全**始终在线**——`/` 菜单随时可用，选模板不依赖是否已解锁。
 - 每个 agent 默认带一条 `tools.restrict({ deny })` 掩码，点掉当前 `mcp__rea__*` 的全部名称。原生 schema 与 PTC 的 SDK 提示词都从同一个 scope 视图投影，所以两处一起消失。
-- Skill 也按 agent 注册，解锁时一并出现；未解锁的会话连目录行都不付。
+- Skill 只在首次解锁时注册一次，最后一个解锁的会话执行 `/rea off` 后即释放；未解锁的会话连目录行都不付，`/rea off` 之后也不再付。
 - 桥接重新同步（`notifications/tools/list_changed`）后掩码自动重建，不会漏掉新一代名称；已解锁的 agent 不会被中途收走工具。
-- 恢复的会话按日志里已有的 `command/run` 重新判定，昨天 `/rea` 过的会话今天不会又被藏起来。
+- 恢复的会话按日志里已有的 `command/run` 重新判定：这些记录会**按顺序重放**，以最后一条 `/rea` 或 `/rea off` 为准，`/rea status` 记录被忽略；昨天 `/rea` 过的会话今天不会又被藏起来。历史读不出来时一律判为 **hidden**，目录绝不会被意外展开。
 
 ### `/rea` 是开关，关键词不是
 
 ```text
 /rea                  只解锁，然后等你说要做什么
 /rea 看看这个 apk      解锁，并把这句话原样发给模型
+/rea on               等同于单独一条 /rea
 /rea status           查看当前是 hidden 还是 revealed
+/rea off              在本次会话里重新隐藏目录
 ```
 
 命令会先解锁，再把 `/rea` 后面的话**作为一条普通用户消息**投递给模型——因为命令本身不会进入模型，不转发就等于把你的请求吞掉。
+
+`/rea off` 会立刻重新装上掩码，并且能跨重载保持：结束时是 hidden 的会话，重新打开仍然是 hidden。它只影响执行该命令的会话。
 
 **为什么不靠关键词自动判断**：判断只能靠猜，猜错的代价是整套目录（native 模式 530 KB）。而且它在最贵的地方必然猜错——讨论这个门禁本身，就一定会说出它的触发词。所以 `/rea` 是权威开关。
 
@@ -43,18 +47,18 @@
 ```
 ## 保留什么
 
-- **170 个原版工具，一个不删**：反编译、交叉引用、字符串搜索、Android/ADB、托管代码、JavaScript/Electron、运行时分析等。取消自行设计的 entry/navigate/analyze 档位。
+- **207 个原版工具，一个不删**：反编译、交叉引用、字符串搜索、Android/ADB、托管代码、JavaScript/Electron、运行时分析等。取消自行设计的 entry/navigate/analyze 档位。
 - 原版输入 schema、参数和描述；DSH 公共名称为 `mcp__rea__<原工具名>`。
 - 使用 DSH 官方 `@deepseek-ai/dsh-mcp-client` 处理目录分页、目录变化、取消、生命周期、输出校验和附件投影，避免自行写一套不完整桥接。
-- 原版 `reverse-engineer-anything` Skill v37、170 工具元数据及全部六篇 references。直接从固定依赖中注册，并指定其资源目录；不覆盖 Codex 或用户自己的技能。
+- 原版 `reverse-engineer-anything` Skill、上游 tool_count 元数据及全部六篇 references。直接从固定依赖中注册，并指定其资源目录；不覆盖 Codex 或用户自己的技能。
 - 运行原版有状态 MCP 进程，保留完整 Evidence 的 content 和 structuredContent，不缩减结果、不重新生成证据 ID。
-- **六个原版 MCP prompts、14 个参数及原版动态补全**从输入框的 `/` 菜单进入，与 170 个工具**共用同一个 REA Client、进程与分析会话**。
+- **六个原版 MCP prompts、25 个参数及原版动态补全**从输入框的 `/` 菜单进入，与 207 个工具**共用同一个 REA Client、进程与分析会话**。
 
 REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、设备、商业授权要求与原版相同。
 
 ## `/` 菜单里的原版任务模板
 
-六个原版 prompt 走的是输入框自己的 `/` 菜单，位于 `rea` 分组下（`/rea:investigate_feature`、`/rea:compare_versions`、`/rea:verify_reconstruction`、`/rea:trace_crash`、`/rea:audit_residual_unknowns`、`/rea:prepare_bounded_process_capture`）——也就是 Codex 呈现同一批 MCP prompts 的那个入口。**不额外增加按钮或常驻控件。**
+六个原版 prompt 走的是输入框自己的 `/` 菜单，位于 `rea` 分组下（`/rea:investigate_feature`、`/rea:compare_application_versions`、`/rea:verify_reconstruction`、`/rea:trace_crash`、`/rea:audit_residual_unknowns`、`/rea:prepare_bounded_process_capture`）——也就是 Codex 呈现同一批 MCP prompts 的那个入口。**不额外增加按钮或常驻控件。**
 
 选中某一项后打开该模板的参数表单：原版参数说明、上游动态补全（目标 document、provider、procedure、已保留 Evidence、capture、manifest、occurrence、未决 unknown），以及可插入草稿的**原文预览**。
 
@@ -109,13 +113,13 @@ Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插�
 
 ## native 与 PTC
 
-两种方式都完整注册 170 个工具。PTC 是 DSH 的工具/agent preset 呈现方式，插件不擅自把其他工具全切换为 PTC。
+两种方式都完整注册全部上游工具。PTC 是 DSH 的工具/agent preset 呈现方式，插件不擅自把其他工具全切换为 PTC。
 
 真实 Cordis 部署实测：
 
 | 方式 | 模型侧工具 JSON | 额外 SDK 提示文本 |
 |---|---:|---:|
-| native，170 个 | 436,594 字节 | 0 |
+| native，207 个 | 775,022 字节 | 0 |
 | PTC，仅 run_code | 944 字节 | 86,633 字节 |
 
 这是**字节测量，不是 tokenizer 计数**。v0.1 中“54 万输入 tokens”的说法错把返回结果 schema 算成模型输入，已经撤回。PTC 不是零上下文；SDK 仍进入提示词。worker 默认墙钟上限 600 秒、计算时间 60 秒、输出 64MiB；只有 return/print 的值进入外层结果，需要完整证据时应完整返回。两种方式保持工具返回内容，但模型使用的接口不同，不能声称回答质量完全一致。
@@ -124,9 +128,9 @@ Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插�
 
 ## 已验证与未验证
 
-`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：170 个名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发与失败处理；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 46 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 7 项按需加载校验。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
+`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：全部名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发与失败处理；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 68 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 7 项按需加载校验。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
 
-**未声称**：170 个操作全部实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
+**未声称**：全部操作实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
 
 官方 `@deepseek-ai/dsh-mcp-client` 没有暴露共享连接钩子，因此 `lib/vendor/mcp-bridge.js` 是该桥接的 MIT 原文副本（文件头记录上游 SHA-256），只做**一处**受审查修改：增加可选的第四个 `onClient` 参数。工具注册、传输、重连、错误与卸载行为与上游逐字节一致，`test/plugin.test.mjs` 会重新推导并比对整份文件，确保它不会静默漂移。官方桥接也不把 MCP annotations 复制到 ToolRuntime 元数据，required-task 执行不受支持。具体环境、方法和边界见[验证报告](verification/README.md)。
 
