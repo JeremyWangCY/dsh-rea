@@ -887,3 +887,31 @@ test('gateOrRestore of a full-reveal history under alwaysDeny keeps that categor
   assert.deepEqual(denied(h, agent), ['mcp__rea__c1'])
   assert.equal(gate.visibility(agent).state, 'all')
 })
+
+test('a mask swap leaks nothing when the registry emits tools/change on restrict and dispose', () => {
+  // The real registry emits 'tools/change' synchronously from restrict() and
+  // from its disposer. Releasing the old mask used to run OUTSIDE the
+  // re-entrancy guard, so that event re-masked the agent from inside the
+  // release, and the outer call then installed a second mask on top of it: the
+  // first was leaked, still denying categories the agent had since revealed.
+  const h = harness(SPREAD)
+  const restrict = h.ctx.tools.restrict
+  h.ctx.tools.restrict = (filter) => {
+    const dispose = restrict(filter)
+    h.ctx.emit('tools/change')
+    return () => { dispose(); h.ctx.emit('tools/change') }
+  }
+  const handle = installGate(h.ctx, { serverName: 'rea', categoryOf: stubCategoryOf })
+  const agent = agentFor(h, 's1')
+  handle.gate.gate(agent)
+  handle.gate.reveal(agent, ['native'])
+  assert.equal(h.state.live.size, 1)
+  handle.gate.reveal(agent, ['web'])
+  assert.equal(h.state.live.size, 1, 'the superseded mask is released, not shadowed')
+  assert.deepEqual(denied(h, agent), ['mcp__rea__a1', 'mcp__rea__c1'])
+  handle.gate.reveal(agent, ['all'])
+  assert.equal(h.state.live.size, 0)
+  handle.gate.relock(agent)
+  assert.equal(h.state.live.size, 1)
+  handle.dispose()
+})
