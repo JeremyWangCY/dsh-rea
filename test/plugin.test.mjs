@@ -262,3 +262,16 @@ test('the skill follows partial reveals: registered on the first, released after
   assert.equal(skills.state.disposed, 1)
   assert.equal(lifespan.isRegistered, false)
 })
+
+test('defaultCategories that alwaysDeny leaves nothing of is rejected, partial overlap is fine', async () => {
+  await assert.rejects(
+    plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['capture'], alwaysDeny: ['capture'] })),
+    /defaultCategories.*alwaysDeny/u,
+  )
+  await assert.rejects(
+    plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['Capture', 'capture'], alwaysDeny: ['capture'] })),
+    /defaultCategories.*alwaysDeny/u,
+  )
+  await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['native', 'capture'], alwaysDeny: ['capture'] }))
+  await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['all'], alwaysDeny: ['capture'] }))
+})
