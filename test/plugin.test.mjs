@@ -55,3 +55,78 @@ test('vendored bridge is exactly upstream plus the documented shared-client hook
 test('disabled plugin never mounts a server or skill', async () => {
  await plugin.apply({skills:{register(){throw Error('unexpected registration')}},plugin(){throw Error('unexpected launch')}},plugin.Config({enabled:false}))
 })
+
+/** Skills service double that records registrations and disposals. */
+function skillsDouble() {
+  const state = { registered: 0, disposed: 0, skill: undefined }
+  return {
+    state,
+    register(skill) { state.registered += 1; state.skill = skill; return () => { state.disposed += 1 } },
+  }
+}
+
+test('the skill registers once no matter how many agents unlock', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'reverse-engineer-anything' })
+  lifespan.onUnlock()
+  lifespan.onUnlock()
+  lifespan.onUnlock()
+  assert.equal(skills.state.registered, 1)
+  assert.equal(lifespan.isRegistered, true)
+  assert.equal(skills.state.skill.name, 'reverse-engineer-anything')
+})
+
+test('the skill is released when the last agent relocks', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  // One agent still has the catalog revealed: the skill must stay.
+  lifespan.onRelock({ unlockedCount: 1 })
+  assert.equal(skills.state.disposed, 0)
+  assert.equal(lifespan.isRegistered, true)
+  lifespan.onRelock({ unlockedCount: 0 })
+  assert.equal(skills.state.disposed, 1)
+  assert.equal(lifespan.isRegistered, false)
+})
+
+test('a relock with no gate yet still releases the skill', () => {
+  // installGate can run the hook before the handle is assigned, so the hook must
+  // treat an absent gate as "no agent revealed" rather than throwing.
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock(undefined)
+  assert.equal(skills.state.disposed, 1)
+})
+
+test('unlock after a release registers the skill again', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock({ unlockedCount: 0 })
+  lifespan.onUnlock()
+  assert.equal(skills.state.registered, 2)
+  assert.equal(lifespan.isRegistered, true)
+})
+
+test('a throwing disposer does not wedge the skill lifespan', () => {
+  const skills = {
+    register() { return () => { throw new Error('skills registry gone') } },
+  }
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock({ unlockedCount: 0 })
+  assert.equal(lifespan.isRegistered, false)
+  // Re-registering must still work after the failed release.
+  lifespan.onUnlock()
+  assert.equal(lifespan.isRegistered, true)
+})
+
+test('a skill service returning a disposer object is handled', () => {
+  let disposed = 0
+  const lifespan = plugin.createSkillLifespan({ register: () => ({ dispose() { disposed += 1 } }) }, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock({ unlockedCount: 0 })
+  assert.equal(disposed, 1)
+  assert.equal(lifespan.isRegistered, false)
+})

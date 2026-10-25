@@ -83,7 +83,7 @@ test('an unclassifiable message fails open', () => {
  * @returns ctx, registry bookkeeping, and the per-agent contexts created.
  */
 function harness(names) {
-  const state = { names: [...names], restrictions: new Map(), warnings: [] }
+  const state = { names: [...names], restrictions: new Map(), warnings: [], live: new Set() }
   const tools = {
     schemas() { return state.names.map((name) => ({ name })) },
     restrict(filter) {
@@ -94,7 +94,12 @@ function harness(names) {
       }
       if (filter.scope === undefined) throw new Error('tools.restrict() requires a scoped context')
       state.restrictions.set(scope, new Set(filter.deny ?? []))
-      return () => state.restrictions.delete(scope)
+      // A real registry returns an independent disposer per call: two live
+      // restrictions on one scope both exist until both are disposed. Tracking
+      // that is what makes a leaked mask observable here.
+      const token = {}
+      state.live.add(token)
+      return () => { state.live.delete(token); state.restrictions.delete(scope) }
     },
     get(name, scope) {
       const denied = scope === undefined ? undefined : state.restrictions.get(scope)
@@ -302,4 +307,155 @@ test('a stored command with a different name does not restore the reveal', () =>
   const agent = agentFor(h, 'session-1', history)
   assert.equal(gate.gateOrRestore(agent), true)
   assert.equal(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+})
+
+/** Build one stored /rea command record. */
+function reaRun(args) {
+  return { type: 'command/run', data: { name: 'rea', args: args, source: { kind: 'user' } } }
+}
+
+test('relock hides the catalog again and re-installs the mask', () => {
+  const h = harness(['read', 'mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1')
+  gate.gate(agent)
+  gate.unlock(agent)
+  assert.notEqual(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+  assert.equal(gate.relock(agent), true)
+  assert.equal(gate.isGated(agent), true)
+  assert.equal(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+  assert.notEqual(h.ctx.tools.get('read', agent.scope), undefined)
+})
+
+test('relock then unlock again leaves exactly one live mask', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1')
+  gate.gate(agent)
+  for (let round = 0; round < 3; round += 1) {
+    gate.unlock(agent)
+    gate.relock(agent)
+  }
+  // Every relock re-installs a mask; none of the previous ones may survive.
+  assert.equal(h.state.restrictions.size, 1)
+  assert.equal(h.state.live.size, 1)
+  assert.equal(gate.maskedCount, 1)
+  assert.equal(gate.unlockedCount, 0)
+  gate.unlock(agent)
+  assert.equal(h.state.restrictions.size, 0)
+  assert.equal(h.state.live.size, 0)
+})
+
+test('relock on an ungated agent reports gated state without a mask', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1')
+  gate.gate(agent)
+  assert.equal(gate.unlockedCount, 0)
+  assert.equal(gate.relock(agent), true)
+  assert.equal(gate.isGated(agent), true)
+})
+
+test('relock runs the onRelock hook and contains a throwing hook', () => {
+  const h = harness(['mcp__rea__a'])
+  const seen = []
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, {
+    onRelock: (agent) => { seen.push(agent.id); throw new Error('hook exploded') },
+  })
+  const agent = agentFor(h, 'session-1')
+  gate.gate(agent)
+  gate.unlock(agent)
+  assert.equal(gate.relock(agent), true)
+  assert.deepEqual(seen, ['session-1'])
+  assert.equal(h.state.warnings.some((text) => text.includes('relock hook failed')), true)
+})
+
+test('unlockedCount tracks how many agents have the catalog revealed', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const one = agentFor(h, 'session-1')
+  const two = agentFor(h, 'session-2')
+  gate.gate(one)
+  gate.gate(two)
+  assert.equal(gate.unlockedCount, 0)
+  gate.unlock(one)
+  assert.equal(gate.unlockedCount, 1)
+  gate.unlock(two)
+  assert.equal(gate.unlockedCount, 2)
+  gate.relock(one)
+  assert.equal(gate.unlockedCount, 1)
+})
+
+test('relock during the install sweep does not read a half-built handle', () => {
+  // installGate sweeps live agents synchronously and can unlock one from its
+  // history before installGate has returned. The plugin's onRelock hook must not
+  // dereference the not-yet-assigned handle in that window; the gate itself must
+  // still relock correctly and run the hook.
+  const h = harness(['mcp__rea__a'])
+  let handle
+  const seen = []
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, {
+    onRelock: (agent) => { seen.push(agent.id); assert.equal(handle, undefined, 'handle is still unset during the sweep') },
+  })
+  const agent = agentFor(h, 'session-1', [reaRun('')])
+  // Mirrors installGate's sweep: gateOrRestore() unlocks from history first.
+  gate.gateOrRestore(agent)
+  assert.equal(gate.unlockedCount, 1)
+  gate.relock(agent)
+  assert.deepEqual(seen, ['session-1'])
+  handle = { gate }
+  assert.equal(gate.unlockedCount, 0)
+})
+
+test('/rea status in the history does NOT restore the reveal', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1', [reaRun('status')])
+  assert.equal(gate.gateOrRestore(agent), true)
+  assert.equal(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+})
+
+test('/rea off in the history does NOT restore the reveal', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1', [reaRun('off')])
+  assert.equal(gate.gateOrRestore(agent), true)
+  assert.equal(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+})
+
+test('the last /rea record in the history wins', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  // reveal, hide, then reveal again.
+  const revealLast = agentFor(h, 's1', [reaRun(''), reaRun('off'), reaRun('on')])
+  assert.equal(gate.gateOrRestore(revealLast), false)
+  assert.notEqual(h.ctx.tools.get('mcp__rea__a', revealLast.scope), undefined)
+  const hideLast = agentFor(h, 's2', [reaRun(''), reaRun('decompile it'), reaRun('off')])
+  assert.equal(gate.gateOrRestore(hideLast), true)
+  assert.equal(h.ctx.tools.get('mcp__rea__a', hideLast.scope), undefined)
+})
+
+test('a /rea that carried a request still restores the reveal', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1', [reaRun('look at this dll')])
+  assert.equal(gate.gateOrRestore(agent), false)
+  assert.notEqual(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+})
+
+test('an unreadable history fails closed and keeps the catalog hidden', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger)
+  const agent = agentFor(h, 'session-1')
+  agent.session.snapshotEvents = () => { throw new Error('history unavailable') }
+  assert.equal(gate.gateOrRestore(agent), true)
+  assert.equal(h.ctx.tools.get('mcp__rea__a', agent.scope), undefined)
+  assert.equal(h.state.warnings.some((text) => text.includes('keeping the catalog hidden')), true)
+})
+
+test('a history that only ever ran /rea status stays hidden but keyword hits still count', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, undefined, { keywordUnlock: true })
+  const keyword = agentFor(h, 's2', [reaRun('status'), { type: 'user/message', data: message('decompile this dll') }])
+  assert.equal(gate.gateOrRestore(keyword), false)
 })
