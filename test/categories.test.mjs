@@ -56,6 +56,9 @@ test('describeCategories emits one line per id', () => {
   const lines = describeCategories()
   assert.equal(lines.length, CATEGORY_IDS.length)
   assert.ok(lines[0].startsWith('- native: '))
+  const trimmed = describeCategories(['other', 'capture'])
+  assert.equal(trimmed.length, CATEGORY_IDS.length - 2)
+  assert.ok(!trimmed.some(line => line.startsWith('- capture: ') || line.startsWith('- other: ')))
 })
 
 test('every tool in the installed REA maps to a category other than other', { timeout: 60000 }, async () => {
