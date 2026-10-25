@@ -915,3 +915,21 @@ test('a mask swap leaks nothing when the registry emits tools/change on restrict
   assert.equal(h.state.live.size, 1)
   handle.dispose()
 })
+
+/** One stored PTC sub-dispatch record: run_code settles a nested tool call as tool/ptc-dispatch. */
+function ptcDispatch(name, args, isError = false) {
+  return { type: 'tool/ptc-dispatch', data: { rootCallId: 'root', parentCallId: 'root', subCallId: 'root:ptc:0', name, arguments: args, isError, content: [] } }
+}
+
+test('replay: a rea_load made through run_code (PTC) is replayed', () => {
+  const history = [reaRun(' on native'), ptcDispatch('rea_load', { categories: ['web'] })]
+  assert.deepEqual(replay(history), { state: 'partial', categories: ['native', 'web'] })
+  // The logged arguments may also be the JSON text.
+  assert.deepEqual(replay([ptcDispatch('rea_load', '{"categories":["android"]}')]), { state: 'partial', categories: ['android'] })
+})
+
+test('replay: a PTC rea_unload hides, and a failed PTC call is ignored', () => {
+  assert.equal(replay([reaRun(' on native'), ptcDispatch('rea_unload', {})]).state, 'hidden')
+  assert.deepEqual(replay([reaRun(' on native'), ptcDispatch('rea_load', { categories: ['web'] }, true)]), { state: 'partial', categories: ['native'] })
+  assert.deepEqual(replay([reaRun(' on native'), ptcDispatch('read', { categories: ['web'] })]), { state: 'partial', categories: ['native'] })
+})
