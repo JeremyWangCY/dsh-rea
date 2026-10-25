@@ -53,3 +53,9 @@ test('the known category list is injectable', () => {
   assert.deepEqual(parseReaInput('on foo', ['foo']), { directive: 'set', categories: ['foo'], request: '' })
   assert.deepEqual(parseReaInput('on native', ['foo']), enable('on native'))
 })
+
+test('list is an exact single word, like status', () => {
+  assert.deepEqual(parseReaInput('list'), { directive: 'list', categories: null, request: '' })
+  assert.deepEqual(parseReaInput(' LIST '), { directive: 'list', categories: null, request: '' })
+  assert.deepEqual(parseReaInput('list the imports of this dll'), enable('list the imports of this dll'))
+})

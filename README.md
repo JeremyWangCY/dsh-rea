@@ -72,6 +72,7 @@ The rows add up to the catalog minus about 200 bytes of JSON array punctuation. 
 /rea on all                reveal every category
 /rea off                   hide the catalog again
 /rea status                what is loaded, its size, and what each other category would cost
+/rea list                  every category with a description, tool count and size; * marks the loaded ones
 ```
 
 A list with an unknown category is refused whole rather than half-applied, and `/rea on this binary` is still a request (a word that is not a category keeps the input a request).

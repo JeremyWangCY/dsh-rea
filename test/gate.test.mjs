@@ -933,3 +933,8 @@ test('replay: a PTC rea_unload hides, and a failed PTC call is ignored', () => {
   assert.deepEqual(replay([reaRun(' on native'), ptcDispatch('rea_load', { categories: ['web'] }, true)]), { state: 'partial', categories: ['native'] })
   assert.deepEqual(replay([reaRun(' on native'), ptcDispatch('read', { categories: ['web'] })]), { state: 'partial', categories: ['native'] })
 })
+
+test('replay: /rea list changes nothing, like status', () => {
+  assert.deepEqual(replay([reaRun(' on native'), reaRun(' list')]), { state: 'partial', categories: ['native'] })
+  assert.equal(replay([reaRun(' list')]).state, 'hidden')
+})

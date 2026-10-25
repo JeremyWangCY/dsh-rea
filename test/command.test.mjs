@@ -264,7 +264,7 @@ test('a request that merely starts with on or add is forwarded, not parsed as ca
 test('the command hint documents the category syntax', () => {
   const { ctx, state } = harness()
   registerReaCommand(ctx, { gate: gateDouble(true) })
-  assert.equal(state.definition.input.hint, '[on [cats]|add <cats>|off|status] [request]')
+  assert.equal(state.definition.input.hint, '[on [cats]|add <cats>|off|status|list] [request]')
 })
 
 /** A real gate over a minimal registry, for status text and default-category behaviour. */
@@ -326,4 +326,38 @@ test('revealing only a denied category says so', () => {
   assert.equal(result.kind, 'success')
   assert.match(result.text, /No REA tools were revealed\./u)
   assert.match(result.text, /alwaysDeny\): capture/u)
+})
+
+test('/rea list describes every category with its size and marks the loaded ones', () => {
+  const { ctx, state } = harness()
+  const { gate, agent } = realGate({ alwaysDeny: ['capture'] })
+  registerReaCommand(ctx, { gate })
+  const hidden = state.definition.handler({ agent, rawInput: 'list', attachments: [] })
+  assert.equal(hidden.kind, 'success')
+  assert.match(hidden.text, /^REA categories \(loaded: none\)/u)
+  assert.match(hidden.text, /^ {2}native +2 tools +2 KB +Native binaries: /mu)
+  assert.match(hidden.text, /^ {2}web +1 tool +4 KB +Web\/JS: /mu)
+  assert.doesNotMatch(hidden.text, /^.{0,3}other /mu, 'a category with no tools is not listed')
+  assert.doesNotMatch(hidden.text, /^.{0,3}capture /mu, 'a masked category is not listed as loadable')
+  assert.match(hidden.text, /Masked by this profile \(alwaysDeny\): capture\./u)
+  assert.match(hidden.text, /\/rea add <category>/u)
+  gate.reveal(agent, ['native'])
+  const partial = state.definition.handler({ agent, rawInput: ' list', attachments: [] })
+  assert.match(partial.text, /^REA categories \(loaded: native\)/u)
+  assert.match(partial.text, /^\* native /mu)
+  assert.match(partial.text, /^ {2}web /mu)
+  gate.reveal(agent, ['all'])
+  const all = state.definition.handler({ agent, rawInput: 'list', attachments: [] })
+  assert.match(all.text, /^REA categories \(loaded: all\)/u)
+  assert.match(all.text, /^\* web /mu)
+})
+
+test('/rea list changes nothing and the status line points at it', () => {
+  const { ctx, state } = harness()
+  const { gate, agent } = realGate()
+  registerReaCommand(ctx, { gate })
+  state.definition.handler({ agent, rawInput: 'list', attachments: [] })
+  assert.equal(gate.visibility(agent).state, 'hidden')
+  const status = state.definition.handler({ agent, rawInput: 'status', attachments: [] })
+  assert.match(status.text, /\/rea list/u)
 })
