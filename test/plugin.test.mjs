@@ -6,6 +6,22 @@ import yaml from 'js-yaml'
 import * as plugin from '../lib/index.js'
 import { renderVendoredBridge } from '../verify/vendor-bridge.mjs'
 
+/**
+ * Concatenate the upstream compiled runtime so a prompt name can be looked up
+ * wherever the bundler happened to place it.
+ * @returns every shipped dist file joined.
+ */
+async function readAllDist() {
+  const root = join(plugin.upstreamPaths().root, 'dist')
+  const files = await readdir(root, { recursive: true })
+  const parts = []
+  for (const rel of files) {
+    if (!rel.endsWith('.js')) continue
+    parts.push(await readFile(join(root, rel), 'utf8'))
+  }
+  return parts.join('\n')
+}
+
 test('default config preserves all tools and reports startup failure', () => {
  const config=plugin.Config({})
  assert.equal(config.tools,'all')
@@ -17,7 +33,8 @@ test('default config preserves all tools and reports startup failure', () => {
 test('launcher uses exact dependency without network package runner', async () => {
  const paths=plugin.upstreamPaths()
  const pkg=JSON.parse(await readFile(join(paths.root,'package.json'),'utf8'))
- assert.equal(pkg.version,'6.4.0')
+ assert.equal(pkg.version,plugin.upstreamVersion())
+ assert.match(pkg.version,/^\d+\.\d+\.\d+$/)
  const config=plugin.launcherConfig(plugin.Config({nodeCommand:process.execPath,env:{REA_TEST_VALUE:'explicit'}}))
  assert.equal(config.command,process.execPath)
  assert.deepEqual(config.args,[paths.launcher,'mcp'])
@@ -50,6 +67,22 @@ test('vendored bridge is exactly upstream plus the documented shared-client hook
   // The notice and the only semantic edit are both present.
   assert.match(code, /Copyright \(c\) 2026 DeepSeek/)
   assert.equal(code.split('onClient?.(generation)').length - 1, 1)
+})
+
+test('localized prompt titles key the real upstream prompt names', async () => {
+  // The '/' menu labels each prompt with titles[name] ?? title ?? name, so a key
+  // that does not match `prompts/list` degrades to raw English with no error.
+  // Upstream renamed this one to `compare_application_versions`; pin the keys to
+  // the names the installed package actually serves.
+  const client=await readFile(new URL('../lib/client.js', import.meta.url),'utf8')
+  const literal=/const titles = \{([^}]*)\}/.exec(client)
+  assert.ok(literal,'client.js no longer declares a titles map')
+  const keys=[...literal[1].matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:/g)].map(m=>m[1])
+  assert.equal(keys.length,6)
+  assert.ok(keys.includes('compare_application_versions'))
+  assert.ok(!keys.includes('compare_versions'))
+  const source=await readAllDist()
+  for(const key of keys) assert.ok(source.includes(key),`upstream does not serve prompt ${key}`)
 })
 
 test('disabled plugin never mounts a server or skill', async () => {

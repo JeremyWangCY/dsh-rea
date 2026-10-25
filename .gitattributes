@@ -1,0 +1,7 @@
+# The vendored bridge is byte-compared against a freshly rendered upstream copy
+# (test/plugin.test.mjs). Git's autocrlf rewrites CRLF into the working tree,
+# which makes that comparison fail on a Windows checkout while passing in CI.
+# Force LF for the files this repository generates and compares byte-for-byte.
+* text=auto eol=lf
+lib/vendor/mcp-bridge.js text eol=lf
+verify/vendor-bridge.mjs text eol=lf

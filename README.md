@@ -1,8 +1,8 @@
 # dsh-rea
 
-Full [REA](https://github.com/morluto/rea) 6.4.0 MCP tools and its original version-matched skill for DeepSeek Harness. English | [中文](README.zh.md)
+Full [REA](https://github.com/morluto/rea) 6.7.0 MCP tools and its original version-matched skill for DeepSeek Harness. English | [中文](README.zh.md)
 
-**Lazy by default:** the 170 tool schemas and the skill stay out of a request until you run `/rea` — 530,559 bytes per request saved in native mode (~67 KB in PTC) when they are not needed.
+**Lazy by default:** the 207 tool schemas and the skill stay out of a request until you run `/rea` — 775,022 bytes per request saved in native mode (~67 KB in PTC) when they are not needed.
 
 ## Lazy exposure (default since v0.4)
 
@@ -10,19 +10,23 @@ Tools and the skill are **per-agent lazily visible**; the protocol and the proce
 
 - The MCP connection, the single REA process, all six original prompts and completions are **always live** — the `/` menu works whether or not a session has revealed the catalog.
 - Each agent starts with a `tools.restrict({ deny })` mask naming every current `mcp__rea__*` tool. Native schemas and the generated PTC SDK prompt are both projected from the same scope view, so both lose the catalog together.
-- The skill is registered per agent too, so it appears at reveal time and costs nothing in sessions that never reveal.
+- The skill is registered once at reveal time and released again when the last revealed session hides the catalog, so it costs nothing in sessions that never reveal — and stops costing anything after `/rea off`.
 - A bridge re-sync (`notifications/tools/list_changed`) rebuilds every mask, so a new tool generation cannot slip through; agents that already revealed are never re-masked mid-task.
-- A resumed session is judged from the `command/run` records already in its log, so a session where you ran `/rea` yesterday is not hidden again today.
+- A resumed session is judged from the `command/run` records already in its log: the records are replayed in order, so the last `/rea` or `/rea off` wins, `/rea status` records are ignored, and a session where you ran `/rea` yesterday is not hidden again today. An unreadable history means **hidden** — the catalogue is never revealed by accident.
 
 ### `/rea` is the switch; keywords are not
 
 ```text
 /rea                      reveal only, then wait for the request
 /rea look at this apk      reveal, and forward that text to the model verbatim
+/rea on                    same as a bare /rea
 /rea status                report whether the catalog is hidden or revealed
+/rea off                   hide the catalog again for this session
 ```
 
 The command reveals first, then queues everything after `/rea` as an **ordinary user message** — a resolved command never reaches the model, so not forwarding it would silently swallow your request.
+
+`/rea off` re-masks the tools immediately and is durable across a reload: a session that ends hidden stays hidden. It only affects the session that ran it.
 
 **Why not infer from keywords:** inference is a guess, and a wrong guess costs the whole catalog (530 KB in native mode). It is also wrong precisely where it is most expensive — discussing this gate necessarily names its trigger words. `/rea` is the user saying it outright.
 
@@ -43,18 +47,18 @@ Return to the previous always-on catalogue:
 ```
 ## What is preserved
 
-- All **170 upstream tools**, including navigation, decompilation, Android/ADB, managed code, JavaScript/Electron and runtime analysis. No invented entry/navigate/analyze tiers.
+- All **207 upstream tools**, including navigation, decompilation, Android/ADB, managed code, JavaScript/Electron and runtime analysis. No invented entry/navigate/analyze tiers.
 - Original input schemas and descriptions, with stable DSH names `mcp__rea__<upstream-name>`.
 - The official `@deepseek-ai/dsh-mcp-client` handles pagination, notifications, cancellation, lifecycle, output validation and attachment projection.
-- Original `reverse-engineer-anything` skill v37, tool_count=170 and all six references. The plugin registers the package's skill with its own resource directory; it does not overwrite Codex/user skills.
+- Original `reverse-engineer-anything` skill, its upstream `tool_count` and all six references. The plugin registers the package's skill with its own resource directory; it does not overwrite Codex/user skills.
 - Original stateful upstream MCP process and complete Evidence `content`/`structuredContent`. No result summaries or reconstructed IDs.
-- All **six original MCP prompts** with their 14 arguments and the original dynamic completions, reachable from the composer's `/` menu on the *same* REA Client, process and analysis session as the 170 tools.
+- All **six original MCP prompts** with their 25 arguments and the original dynamic completions, reachable from the composer's `/` menu on the *same* REA Client, process and analysis session as the 207 tools.
 
 REA is an exact npm dependency, not a reimplementation. Native engines and commercial licenses remain bring-your-own, exactly as upstream.
 
 ## Prompt templates in the `/` menu
 
-The six original prompts enter through the composer's own `/` menu, under the `rea` group (`/rea:investigate_feature`, `/rea:compare_versions`, `/rea:verify_reconstruction`, `/rea:trace_crash`, `/rea:audit_residual_unknowns`, `/rea:prepare_bounded_process_capture`) — the surface a Codex user already knows, where Codex exposes these same MCP prompts. **No extra button or permanent control is added to the composer.**
+The six original prompts enter through the composer's own `/` menu, under the `rea` group (`/rea:investigate_feature`, `/rea:compare_application_versions`, `/rea:verify_reconstruction`, `/rea:trace_crash`, `/rea:audit_residual_unknowns`, `/rea:prepare_bounded_process_capture`) — the surface a Codex user already knows, where Codex exposes these same MCP prompts. **No extra button or permanent control is added to the composer.**
 
 Picking an entry opens that template's argument form: the original argument descriptions, upstream argument completions (target documents, providers, procedures, retained Evidence, captures, manifests, occurrences, unresolved unknowns) and an exact-text preview you can insert into the draft.
 
@@ -115,7 +119,7 @@ Measured in an isolated real Cordis deployment on this machine:
 
 | Presentation | Model-side tool JSON | Generated SDK text |
 |---|---:|---:|
-| native, all 170 | 436,594 bytes | 0 |
+| native, all 207 | 775,022 bytes | 0 |
 | PTC, `run_code` only | 944 bytes | 86,633 bytes |
 
 These are **bytes, not tokenizer counts**. The previous v0.1 claim of ~543k input tokens incorrectly counted MCP output schemas as model input. PTC is not zero-context; SDK text is in the prompt. Its default worker wall limit is 600s, compute limit 60s and output limit 64MiB. Only returned/printed values become the outer result, so return complete Evidence when needed. PTC and native preserve tool results, but they are different model interfaces and are not proven to produce identical answers.
@@ -124,15 +128,32 @@ Use the original skill's routing, Evidence and provider-recovery instructions. R
 
 ## Verification and limits
 
-`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: all 170 names/descriptions/input schemas, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the actual `/` source: idle silence (the session slot renders nothing and no request is sent), source registration, candidate filtering, a `handled` pick that writes no draft, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, error surfacing, and the post-upgrade restart hint. `verify/connection.mjs` mounts the real installed `WebServer` + `Connection` and speaks the real wire: 401 without the browser session, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus envelope, content-type, Host-fence and disposal refusals. `test/gate.test.mjs` covers per-agent masking, re-sync, resume behaviour and the default "keywords do not reveal" policy; `test/command.test.mjs` covers `/rea` directive parsing, forwarding and failure handling. `verify/lazy-exposure.mjs` mounts the real `dsh-system-prompt`/`dsh-tools`/`dsh-skill` services and measures that a gated agent's assembly carries zero `mcp__rea__` schemas while the bridge keeps its full generation installed. `pnpm test` runs 46 unit/harness tests; `pnpm verify` runs the 35-check differential suite and `pnpm verify:lazy` the 7-check lazy-exposure suite. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
+`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: every upstream name/description/input schema, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the actual `/` source: idle silence (the session slot renders nothing and no request is sent), source registration, candidate filtering, a `handled` pick that writes no draft, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, error surfacing, and the post-upgrade restart hint. `verify/connection.mjs` mounts the real installed `WebServer` + `Connection` and speaks the real wire: 401 without the browser session, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus envelope, content-type, Host-fence and disposal refusals. `test/gate.test.mjs` covers per-agent masking, re-sync, resume behaviour and the default "keywords do not reveal" policy; `test/command.test.mjs` covers `/rea` directive parsing, forwarding and failure handling. `verify/lazy-exposure.mjs` mounts the real `dsh-system-prompt`/`dsh-tools`/`dsh-skill` services and measures that a gated agent's assembly carries zero `mcp__rea__` schemas while the bridge keeps its full generation installed. `pnpm test` runs 68 unit/harness tests; `pnpm verify` runs the differential suite and `pnpm verify:lazy` the 7-check lazy-exposure suite. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
 
-Not claimed: all 170 operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits; exhaustive completion coverage for every external provider. External providers require task-specific verification.
+Not claimed: all upstream operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits; exhaustive completion coverage for every external provider. External providers require task-specific verification.
 
 The official `@deepseek-ai/dsh-mcp-client` exposes no shared-connection hook, so `lib/vendor/mcp-bridge.js` is a verbatim MIT copy of that bridge (upstream SHA-256 recorded in its header) with exactly one reviewed local change: an optional fourth `onClient` argument. Tool registration, transport, reconnect, error and disposal behavior are byte-identical to upstream, and `test/plugin.test.mjs` re-derives and compares the whole file so it cannot silently drift. The official bridge also does not copy MCP annotations to ToolRuntime metadata; required-task execution would be unsupported. See [the bounded verification report](verification/README.md) for environment, methods and exact limitations.
 
 ## Migration from v0.1
 
 Remove old `tools: entry/navigate/analyze`, `runner` and `version` overrides. Version comes from the exact dependency; all tools are restored, public prefix changes from `rea__` to `mcp__rea__`. New naming matches DSH's official bridge.
+
+## Upgrading the pinned REA release
+
+The dependency is an exact pin, so a new REA release is adopted by changing that one
+line and re-verifying — no adapter source change is expected, because the plugin reads
+the version and the catalog size from the installed package instead of carrying literals:
+
+```sh
+pnpm add rea-agents@<new-version>
+node verify/measure.mjs     # regenerates verification/schema-measurement.json
+pnpm test && pnpm verify && pnpm verify:lazy
+```
+
+Then update the version, tool count, prompt-argument count and byte figures in
+`README.md`, `README.zh.md` and `verification/README.md`. `pnpm verify` derives the
+count itself, so a catalog change surfaces as a failure in the deep comparison rather
+than as a silently stale document.
 
 ## License
 
