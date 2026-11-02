@@ -19,16 +19,7 @@ const { default: Tools } = await load('@deepseek-ai/dsh-tools')
 const { default: Skills } = await load('@deepseek-ai/dsh-skill')
 const { default: Worker } = await load('@deepseek-ai/dsh-code-runtime-worker-thread')
 
-const report={upstream:'6.4.0',node:process.versions.node,checks:[],modes:{},limitations:[
- 'Catalog parity covers 170 tools; it is not execution coverage of all 170 operations.',
- 'Only deterministic JS/data-flow, one-record HAR, one-member ZIP and state/error/disposal scenarios were compared.',
- 'Cancellation tested before dispatch, not during a long-running engine operation.',
- 'Native external engines, live browser/Electron, ADB and image attachments were not exercised.',
- 'Six original prompts and same-session completions tested; external native-provider completions not exhaustively exercised.',
- 'PTC error contract differs from MCP: program receives a ToolCallError with upstream message.',
- 'Official bridge does not preserve MCP annotations as ToolRuntime metadata; native client metadata parity is not claimed.',
- 'Model reasoning/output equivalence is not established by transport tests.'
-]}
+const report={upstream:plugin.upstreamVersion(),node:process.versions.node,checks:[],modes:{},limitations:[]}
 async function installedVersion(name){
  let dir=dirname(hostRequire.resolve(name))
  while(true){
@@ -87,7 +78,21 @@ try {
   assert.ok(template.messages.length)
  }
  pass('reference: six original MCP prompt templates render (DSH UI not implemented)')
- assert.equal(upstream.length,170)
+ // The catalog size is upstream's to decide; derive it instead of pinning a
+ // literal that goes stale on every REA release.
+ const toolCount=upstream.length
+ assert.ok(toolCount>0,'upstream advertised no tools')
+ report.toolCount=toolCount
+ report.limitations.push(
+  `Catalog parity covers ${toolCount} tools; it is not execution coverage of all ${toolCount} operations.`,
+  'Only deterministic JS/data-flow, one-record HAR, one-member ZIP and state/error/disposal scenarios were compared.',
+  'Cancellation tested before dispatch, not during a long-running engine operation.',
+  'Native external engines, live browser/Electron, ADB and image attachments were not exercised.',
+  'Six original prompts and same-session completions tested; external native-provider completions not exhaustively exercised.',
+  'PTC error contract differs from MCP: program receives a ToolCallError with upstream message.',
+  'Official bridge does not preserve MCP annotations as ToolRuntime metadata; native client metadata parity is not claimed.',
+  'Model reasoning/output equivalence is not established by transport tests.'
+ )
  const argsEqual={}; const baseline=await direct.callTool({name:'analyze_javascript_application',arguments:input},undefined,{timeout:300000})
  assert.equal(baseline.isError,undefined)
  assert.ok(baseline.structuredContent)
@@ -137,15 +142,15 @@ try {
    assert.deepEqual(await requestPrompt('complete',providerParams),await direct.complete({ref:{type:'ref/prompt',name:providerParams.name},argument:{name:providerParams.argument,value:''},context:{arguments:{}}}))
    pass(`${mode}: original provider completion identical`)
   const schemas=ctx.tools.schemas().filter(s=>s.name.startsWith('mcp__rea__'))
-  assert.equal(schemas.length,170)
+  assert.equal(schemas.length,toolCount)
   for(const t of upstream) {
    const s=schemas.find(s=>s.name===`mcp__rea__${t.name}`)
    assert.ok(s,t.name); assert.deepEqual(s.parameters,t.inputSchema);assert.equal(s.description,t.description)
   }
-  pass(`${mode}: 170 names / input schemas / descriptions identical`)
+  pass(`${mode}: ${toolCount} names / input schemas / descriptions identical`)
   const skill=await ctx.skills.get('reverse-engineer-anything')
   assert.deepEqual(skill, {...await plugin.upstreamSkill(),invocation:{modelInvocable:true,userInvocable:true}})
-  pass(`${mode}: upstream Skill v37 body and reference directory unchanged`)
+  pass(`${mode}: upstream Skill v${skill.metadata?.version} body and reference directory unchanged`)
   const assembly=await ctx.systemPrompt.assemble()
   report.modes[mode]={wireToolCount:assembly.tools.length,toolSchemaBytes:Buffer.byteLength(JSON.stringify(assembly.tools)),sdkTextBytes:Buffer.byteLength(assembly.sections.filter(s=>s.name==='tools:sdk').map(s=>s.text).join('\n')),totalPromptBytes:Buffer.byteLength(JSON.stringify(assembly))}
   const invoke=async (name,args)=> {
@@ -232,6 +237,12 @@ finally {
  await direct.close()
  for(const ctx of hosts.reverse()) await ctx.fiber.dispose()
  await mkdir(new URL('../verification/',import.meta.url),{recursive:true})
- await writeFile(new URL('../verification/integration-report.json',import.meta.url),JSON.stringify(report,null,2))
+ // A failed run has no verified evidence to publish: it stops at the first
+ // failing assertion, so `checks` is a prefix and `modes` may be empty. Writing
+ // it anyway would commit that truncated run over the last good report and make
+ // the artifact claim less than it measured. Keep the good file and leave the
+ // failure on stdout/exit code where it belongs.
+ if(report.failure) console.error('dsh-rea: verification failed; verification/integration-report.json left unchanged')
+ else await writeFile(new URL('../verification/integration-report.json',import.meta.url),JSON.stringify(report,null,2))
  console.log('REPORT',JSON.stringify(report,null,2))
 }

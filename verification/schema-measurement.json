@@ -1,7 +1,7 @@
 {
   "version": {
     "name": "rea",
-    "version": "6.4.0"
+    "version": "6.7.0"
   },
   "capabilities": {
     "completions": {},
@@ -12,11 +12,21 @@
       "listChanged": true
     }
   },
-  "toolCount": 170,
-  "fullCatalogBytes": 1954683,
-  "modelInputBytes": 436594,
-  "inputSchemaBytes": 365817,
-  "outputSchemaBytes": 1494071,
-  "descriptionBytes": 59112,
-  "maxPublicNameLength": 48
+  "toolCount": 207,
+  "fullCatalogBytes": 3158358,
+  "modelInputBytes": 775022,
+  "inputSchemaBytes": 667850,
+  "outputSchemaBytes": 2354101,
+  "descriptionBytes": 92952,
+  "maxPublicNameLength": 48,
+  "previous": {
+    "version": "6.4.0",
+    "toolCount": 170,
+    "fullCatalogBytes": 1954683,
+    "modelInputBytes": 436594,
+    "inputSchemaBytes": 365817,
+    "outputSchemaBytes": 1494071,
+    "descriptionBytes": 59112,
+    "maxPublicNameLength": 48
+  }
 }

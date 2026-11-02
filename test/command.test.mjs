@@ -58,11 +58,12 @@ function harness() {
 
 /** A gate double that records calls without touching any registry. */
 function gateDouble(gated) {
-  const calls = { unlocked: [], gated: gated }
+  const calls = { unlocked: [], relocked: [], gated: gated }
   return {
     calls,
     isGated: () => calls.gated,
     unlock(agent) { calls.unlocked.push(agent); calls.gated = false; return true },
+    relock(agent) { calls.relocked.push(agent); calls.gated = true; return true },
   }
 }
 
@@ -111,14 +112,49 @@ test('/rea forwards the request as one user message on the same agent', () => {
   assert.deepEqual(gate.calls.unlocked, [agent])
 })
 
-test('/rea off refuses rather than taking the tools away mid-task', () => {
+test('/rea off hides the catalog again for this session', () => {
   const { ctx, state } = harness()
   const gate = gateDouble(false)
   registerReaCommand(ctx, { gate })
-  const result = state.definition.handler({ agent: { id: 'a' }, rawInput: 'off', attachments: [] })
-  assert.equal(result.kind, 'error')
-  assert.match(result.text, /new session/u)
+  const agent = { id: 'a' }
+  const result = state.definition.handler({ agent, rawInput: 'off', attachments: [] })
+  assert.equal(result.kind, 'success')
+  assert.match(result.text, /hidden for this session/u)
+  assert.deepEqual(gate.calls.relocked, [agent])
   assert.deepEqual(gate.calls.unlocked, [])
+})
+
+test('/rea off on an already-hidden catalog is a no-op, not an error', () => {
+  const { ctx, state } = harness()
+  const gate = gateDouble(true)
+  registerReaCommand(ctx, { gate })
+  const result = state.definition.handler({ agent: { id: 'a' }, rawInput: 'off', attachments: [] })
+  assert.equal(result.kind, 'success')
+  assert.match(result.text, /already hidden/u)
+  assert.deepEqual(gate.calls.relocked, [])
+})
+
+test('/rea reveals again after /rea off', () => {
+  const { ctx, state } = harness()
+  const gate = gateDouble(false)
+  registerReaCommand(ctx, { gate })
+  const agent = { id: 'a' }
+  state.definition.handler({ agent, rawInput: 'off', attachments: [] })
+  assert.equal(gate.calls.gated, true)
+  const result = state.definition.handler({ agent, rawInput: '', attachments: [] })
+  assert.equal(result.kind, 'success')
+  assert.equal(gate.calls.gated, false)
+  assert.deepEqual(gate.calls.relocked, [agent])
+  assert.deepEqual(gate.calls.unlocked, [agent])
+})
+
+test('/rea status reports hidden again after /rea off', () => {
+  const { ctx, state } = harness()
+  registerReaCommand(ctx, { gate: gateDouble(false) })
+  state.definition.handler({ agent: { id: 'a' }, rawInput: 'off', attachments: [] })
+  const result = state.definition.handler({ agent: { id: 'a' }, rawInput: 'status', attachments: [] })
+  assert.equal(result.kind, 'success')
+  assert.match(result.text, /hidden/u)
 })
 
 test('a failing reveal reports an error instead of throwing at the composer', () => {

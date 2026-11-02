@@ -6,6 +6,22 @@ import yaml from 'js-yaml'
 import * as plugin from '../lib/index.js'
 import { renderVendoredBridge } from '../verify/vendor-bridge.mjs'
 
+/**
+ * Concatenate the upstream compiled runtime so a prompt name can be looked up
+ * wherever the bundler happened to place it.
+ * @returns every shipped dist file joined.
+ */
+async function readAllDist() {
+  const root = join(plugin.upstreamPaths().root, 'dist')
+  const files = await readdir(root, { recursive: true })
+  const parts = []
+  for (const rel of files) {
+    if (!rel.endsWith('.js')) continue
+    parts.push(await readFile(join(root, rel), 'utf8'))
+  }
+  return parts.join('\n')
+}
+
 test('default config preserves all tools and reports startup failure', () => {
  const config=plugin.Config({})
  assert.equal(config.tools,'all')
@@ -17,7 +33,8 @@ test('default config preserves all tools and reports startup failure', () => {
 test('launcher uses exact dependency without network package runner', async () => {
  const paths=plugin.upstreamPaths()
  const pkg=JSON.parse(await readFile(join(paths.root,'package.json'),'utf8'))
- assert.equal(pkg.version,'6.4.0')
+ assert.equal(pkg.version,plugin.upstreamVersion())
+ assert.match(pkg.version,/^\d+\.\d+\.\d+$/)
  const config=plugin.launcherConfig(plugin.Config({nodeCommand:process.execPath,env:{REA_TEST_VALUE:'explicit'}}))
  assert.equal(config.command,process.execPath)
  assert.deepEqual(config.args,[paths.launcher,'mcp'])
@@ -52,6 +69,97 @@ test('vendored bridge is exactly upstream plus the documented shared-client hook
   assert.equal(code.split('onClient?.(generation)').length - 1, 1)
 })
 
+test('localized prompt titles key the real upstream prompt names', async () => {
+  // The '/' menu labels each prompt with titles[name] ?? title ?? name, so a key
+  // that does not match `prompts/list` degrades to raw English with no error.
+  // Upstream renamed this one to `compare_application_versions`; pin the keys to
+  // the names the installed package actually serves.
+  const client=await readFile(new URL('../lib/client.js', import.meta.url),'utf8')
+  const literal=/const titles = \{([^}]*)\}/.exec(client)
+  assert.ok(literal,'client.js no longer declares a titles map')
+  const keys=[...literal[1].matchAll(/([A-Za-z_][A-Za-z0-9_]*)\s*:/g)].map(m=>m[1])
+  assert.equal(keys.length,6)
+  assert.ok(keys.includes('compare_application_versions'))
+  assert.ok(!keys.includes('compare_versions'))
+  const source=await readAllDist()
+  for(const key of keys) assert.ok(source.includes(key),`upstream does not serve prompt ${key}`)
+})
+
 test('disabled plugin never mounts a server or skill', async () => {
  await plugin.apply({skills:{register(){throw Error('unexpected registration')}},plugin(){throw Error('unexpected launch')}},plugin.Config({enabled:false}))
+})
+
+/** Skills service double that records registrations and disposals. */
+function skillsDouble() {
+  const state = { registered: 0, disposed: 0, skill: undefined }
+  return {
+    state,
+    register(skill) { state.registered += 1; state.skill = skill; return () => { state.disposed += 1 } },
+  }
+}
+
+test('the skill registers once no matter how many agents unlock', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'reverse-engineer-anything' })
+  lifespan.onUnlock()
+  lifespan.onUnlock()
+  lifespan.onUnlock()
+  assert.equal(skills.state.registered, 1)
+  assert.equal(lifespan.isRegistered, true)
+  assert.equal(skills.state.skill.name, 'reverse-engineer-anything')
+})
+
+test('the skill is released when the last agent relocks', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  // One agent still has the catalog revealed: the skill must stay.
+  lifespan.onRelock({ unlockedCount: 1 })
+  assert.equal(skills.state.disposed, 0)
+  assert.equal(lifespan.isRegistered, true)
+  lifespan.onRelock({ unlockedCount: 0 })
+  assert.equal(skills.state.disposed, 1)
+  assert.equal(lifespan.isRegistered, false)
+})
+
+test('a relock with no gate yet still releases the skill', () => {
+  // installGate can run the hook before the handle is assigned, so the hook must
+  // treat an absent gate as "no agent revealed" rather than throwing.
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock(undefined)
+  assert.equal(skills.state.disposed, 1)
+})
+
+test('unlock after a release registers the skill again', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock({ unlockedCount: 0 })
+  lifespan.onUnlock()
+  assert.equal(skills.state.registered, 2)
+  assert.equal(lifespan.isRegistered, true)
+})
+
+test('a throwing disposer does not wedge the skill lifespan', () => {
+  const skills = {
+    register() { return () => { throw new Error('skills registry gone') } },
+  }
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock({ unlockedCount: 0 })
+  assert.equal(lifespan.isRegistered, false)
+  // Re-registering must still work after the failed release.
+  lifespan.onUnlock()
+  assert.equal(lifespan.isRegistered, true)
+})
+
+test('a skill service returning a disposer object is handled', () => {
+  let disposed = 0
+  const lifespan = plugin.createSkillLifespan({ register: () => ({ dispose() { disposed += 1 } }) }, { name: 'x' })
+  lifespan.onUnlock()
+  lifespan.onRelock({ unlockedCount: 0 })
+  assert.equal(disposed, 1)
+  assert.equal(lifespan.isRegistered, false)
 })

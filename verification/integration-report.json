@@ -1,6 +1,6 @@
 {
-  "upstream": "6.4.0",
-  "node": "24.21.0",
+  "upstream": "6.7.0",
+  "node": "22.23.4",
   "checks": [
     {
       "name": "reference: six original MCP prompt templates render (DSH UI not implemented)",
@@ -10,7 +10,7 @@
       "name": "reference MCP successful Evidence",
       "pass": true,
       "details": {
-        "evidence_id": "ev_cc1622aee4367bd2e6bcd144c2cfc5bc6991c9ae30ab562d6b80fbc3b1c4b047"
+        "evidence_id": "ev_5478a6a54cf86fa6319f254d2972ccae3975ad1c1b46d1350f63b77339649dff"
       }
     },
     {
@@ -22,11 +22,11 @@
       "pass": true
     },
     {
-      "name": "native: 170 names / input schemas / descriptions identical",
+      "name": "native: 207 names / input schemas / descriptions identical",
       "pass": true
     },
     {
-      "name": "native: upstream Skill v37 body and reference directory unchanged",
+      "name": "native: upstream Skill v42 body and reference directory unchanged",
       "pass": true
     },
     {
@@ -86,11 +86,11 @@
       "pass": true
     },
     {
-      "name": "ptc: 170 names / input schemas / descriptions identical",
+      "name": "ptc: 207 names / input schemas / descriptions identical",
       "pass": true
     },
     {
-      "name": "ptc: upstream Skill v37 body and reference directory unchanged",
+      "name": "ptc: upstream Skill v42 body and reference directory unchanged",
       "pass": true
     },
     {
@@ -148,20 +148,20 @@
   ],
   "modes": {
     "native": {
-      "wireToolCount": 170,
-      "toolSchemaBytes": 436594,
+      "wireToolCount": 207,
+      "toolSchemaBytes": 775022,
       "sdkTextBytes": 0,
-      "totalPromptBytes": 436826
+      "totalPromptBytes": 775254
     },
     "ptc": {
       "wireToolCount": 1,
       "toolSchemaBytes": 944,
-      "sdkTextBytes": 86633,
-      "totalPromptBytes": 89095
+      "sdkTextBytes": 126045,
+      "totalPromptBytes": 128785
     }
   },
   "limitations": [
-    "Catalog parity covers 170 tools; it is not execution coverage of all 170 operations.",
+    "Catalog parity covers 207 tools; it is not execution coverage of all 207 operations.",
     "Only deterministic JS/data-flow, one-record HAR, one-member ZIP and state/error/disposal scenarios were compared.",
     "Cancellation tested before dispatch, not during a long-running engine operation.",
     "Native external engines, live browser/Electron, ADB and image attachments were not exercised.",
@@ -176,5 +176,6 @@
     "@deepseek-ai/dsh-skill": "0.1.5-rc.3",
     "@deepseek-ai/dsh-code-runtime-worker-thread": "0.1.5-rc.3"
   },
-  "moduleRoot": "C:\\Users\\Laptop\\AppData\\Roaming\\com.jeremy.deepx-workbench\\runtime"
+  "moduleRoot": "project checkout node_modules",
+  "toolCount": 207
 }

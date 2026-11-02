@@ -1,5 +1,12 @@
 # Differential verification of dsh-rea 0.3.0
 
+> **Historical report — v0.3.0 against `rea-agents@6.4.0`.** Every figure below was
+> measured on that pair and is deliberately not rewritten, so the record of what
+> was actually verified stays intact. Current numbers for the dependency this
+> repository pins today live in [`schema-measurement.json`](schema-measurement.json);
+> the reproducibility steps still apply unchanged. See the note at the end of this
+> file for the 6.7.0 re-verification status.
+
 ## Conclusion
 
 The plugin launches the **unchanged pinned `rea-agents@6.4.0` MCP executable** and mounts its complete tool catalog through DSH's official MCP bridge. It does not rewrite analysis algorithms or substitute CLI calls. The verified tool input contracts and deterministic result envelopes match the upstream server, and the six original prompts plus an original argument completion match the same server over the plugin's own shared connection. This is **bounded adapter parity, not a claim that every engine and LLM answer is equivalent**.
@@ -63,3 +70,36 @@ Counts describe an isolated deployment containing REA, not all tools in the desk
 10. The live GUI control was not confirmed in the running application: that Host process started before this version existed and had already cached `dsh-rea` as a host-only package, so neither the host-side channel nor the browser bundle can appear until it restarts. The bundle's behaviour is covered by the DOM harness, and the profile's `dsh-rea/client` resolution was verified directly (`dsh-rea/package.json` → this checkout, `dsh-rea/client` → `lib/client.js`).
 
 The committed JSON reports are machine-readable verification evidence and include limitations rather than asserting universal equivalence.
+
+## Re-verification against 6.7.0 (this change)
+
+The dependency was moved from `6.4.0` to `6.7.0`. The adapter source did not need
+functional changes; what changed is that the plugin no longer carries any literal
+version or catalog size, so this class of drift cannot recur:
+
+- `plugin.upstreamVersion()` reads the version from the installed package; log lines,
+  the unsupported-Node error and `verify/integration.mjs`'s report provenance all use it
+  instead of a hardcoded `6.4.0`.
+- `verify/integration.mjs` derives the tool count from the server's own `tools/list`
+  instead of asserting `170`, and generates its limitation text from that count.
+- `verify/connection.mjs` asserts that the bridge registered a non-empty `mcp__rea__`
+  generation instead of exactly `170`.
+- `test/plugin.test.mjs` pins the localized prompt-title keys against the prompt names
+  the installed package actually serves.
+
+Catalog change measured from the live server with `node verify/measure.mjs`: 170 → **207 tools**,
+model-side projection 436,594 → **775,022 bytes**, 6 prompts with **25** arguments, skill
+`v37`/`tool_count=170` → `v42`/`tool_count=207`. Upstream also renamed the comparison prompt to
+`compare_application_versions`; the `/` menu title map and both READMEs were corrected to match,
+and a test now fails if a key stops matching `prompts/list`.
+
+**Known open failure:** `pnpm verify` stops at the first differential assertion.
+`analyze_javascript_application` against a directory fixture now fails upstream with
+`integrity_mismatch` ("Directory entry changed before open"), first present in 6.5.0.
+Root cause is Windows-specific and in upstream, not in this plugin: `DirectoryArtifactReader`
+captures `sourceIdentity.device` from `lstat()` (which reports `0n` on Windows) and then
+compares it to `fstat()` on the opened handle (which reports the real volume serial).
+Every other compared field — `ino`, `size`, `mode`, `mtimeNs`, `ctimeNs` — matches. This
+is reproducible without the plugin, affects all 207 tools that read artifacts, and is not
+fixable from this repository. It needs an upstream report; the fixture cannot be adjusted
+to avoid it because the check runs on every entry open.
