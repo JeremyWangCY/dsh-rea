@@ -459,3 +459,34 @@ test('a history that only ever ran /rea status stays hidden but keyword hits sti
   const keyword = agentFor(h, 's2', [reaRun('status'), { type: 'user/message', data: message('decompile this dll') }])
   assert.equal(gate.gateOrRestore(keyword), false)
 })
+test('an async unlock hook that rejects is contained, never an unhandled rejection', async () => {
+  const h = harness(['mcp__rea__a'])
+  const unhandled = []
+  const onUnhandled = (error) => unhandled.push(error)
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, async () => {
+      throw new Error('cannot get property "skills" without inject')
+    })
+    const agent = agentFor(h, 'session-1')
+    gate.gate(agent)
+    assert.equal(gate.unlock(agent), true)
+    // The host aborts on an unhandled rejection, so the guard must settle it.
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    assert.deepEqual(unhandled, [])
+    assert.equal(h.state.warnings.length, 1)
+    assert.match(h.state.warnings[0], /unlock hook failed/u)
+  } finally {
+    process.off('unhandledRejection', onUnhandled)
+  }
+})
+
+test('a synchronous unlock hook failure is logged and does not abort the unlock', () => {
+  const h = harness(['mcp__rea__a'])
+  const gate = new ReaVisibilityGate(h.ctx, 'rea', h.ctx.logger, () => {
+    throw new Error('boom')
+  })
+  const agent = agentFor(h, 'session-1')
+  gate.gate(agent)
+  assert.equal(gate.unlock(agent), true)
+  assert.equal(h.state.warnings.length, 1)

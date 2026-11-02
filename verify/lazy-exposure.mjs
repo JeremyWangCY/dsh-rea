@@ -83,12 +83,15 @@ const fakeSession = () => ({ snapshotEvents: () => [], append: () => 0 })
 const plain = { id: 'session-plain', session: fakeSession(), followup: () => {} }
 const rea = { id: 'session-rea', session: fakeSession(), followup: () => {} }
 const agentScopes = new Map()
-// A real agent scope is minted by the loop plugin, whose context injects the
-// services the loop uses; a scope minted from an uninjected fiber cannot even
-// read `tools`. Mirror that composition here.
+// A real agent scope is minted by the loop plugin (AgentLoop.inject =
+// ['agents','sessions','llm','tools','systemPrompt','sessionProjections']), so
+// the scope inherits exactly those services. `skills` is deliberately NOT one of
+// them: reading `agent.ctx.skills` throws, which is why the unlock hook must
+// reach the registry through `ctx.get('skills')`. Mirroring that omission here
+// is what makes this harness able to catch the regression.
 const agentHost = {
   name: 'lazy-exposure-agent-host',
-  inject: ['tools', 'skills', 'systemPrompt'],
+  inject: ['tools', 'systemPrompt'],
   apply(hostCtx) {
     for (const agent of [plain, rea]) {
       const scope = createScope(hostCtx, agent)
