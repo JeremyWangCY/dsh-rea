@@ -5,7 +5,7 @@
 > was actually verified stays intact. Current numbers for the dependency this
 > repository pins today live in [`schema-measurement.json`](schema-measurement.json);
 > the reproducibility steps still apply unchanged. See the note at the end of this
-> file for the 6.7.0 re-verification status.
+> file for the 6.8.0 re-verification status.
 
 ## Conclusion
 
@@ -71,9 +71,9 @@ Counts describe an isolated deployment containing REA, not all tools in the desk
 
 The committed JSON reports are machine-readable verification evidence and include limitations rather than asserting universal equivalence.
 
-## Re-verification against 6.7.0 (this change)
+## Re-verification against 6.8.0 (this change)
 
-The dependency was moved from `6.4.0` to `6.7.0`. The adapter source did not need
+The dependency was moved from `6.7.0` to `6.8.0`. The adapter source did not need
 functional changes; what changed is that the plugin no longer carries any literal
 version or catalog size, so this class of drift cannot recur:
 
@@ -87,9 +87,14 @@ version or catalog size, so this class of drift cannot recur:
 - `test/plugin.test.mjs` pins the localized prompt-title keys against the prompt names
   the installed package actually serves.
 
-Catalog change measured from the live server with `node verify/measure.mjs`: 170 → **207 tools**,
-model-side projection 436,594 → **775,022 bytes**, 6 prompts with **25** arguments, skill
-`v37`/`tool_count=170` → `v42`/`tool_count=207`. Upstream also renamed the comparison prompt to
+Catalog change measured from the live server with `node verify/measure.mjs`: 207 → **229 tools**,
+model-side projection 775,022 → **273,264 bytes**, 6 prompts with **25** arguments, skill
+`v42`/`tool_count=207` → `v49`/`tool_count=229`, and the shipped skill grew from six to seven
+reference documents. `rea-agents@6.8.0` declares `node: ^22.23.4 || ^24.22.1 || >=26.12.1`;
+the desktop runtime's bundled Node 24.21.0 is one patch below that floor, so the compatibility
+of that pair was verified empirically rather than assumed: a real `initialize` / `tools/list`
+(229 tools) / `tools/call` session, the 35-check differential suite and the 7-check
+lazy-exposure suite all pass on 24.21.0. Upstream also renamed the comparison prompt to
 `compare_application_versions`; the `/` menu title map and both READMEs were corrected to match,
 and a test now fails if a key stops matching `prompts/list`.
 
@@ -100,6 +105,6 @@ Root cause is Windows-specific and in upstream, not in this plugin: `DirectoryAr
 captures `sourceIdentity.device` from `lstat()` (which reports `0n` on Windows) and then
 compares it to `fstat()` on the opened handle (which reports the real volume serial).
 Every other compared field — `ino`, `size`, `mode`, `mtimeNs`, `ctimeNs` — matches. This
-is reproducible without the plugin, affects all 207 tools that read artifacts, and is not
+is reproducible without the plugin, affects every tool that reads artifacts, and is not
 fixable from this repository. It needs an upstream report; the fixture cannot be adjusted
 to avoid it because the check runs on every entry open.

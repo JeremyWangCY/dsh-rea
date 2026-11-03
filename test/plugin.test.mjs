@@ -41,7 +41,7 @@ test('launcher uses exact dependency without network package runner', async () =
  assert.equal(config.env.REA_TEST_VALUE,'explicit')
  assert.equal(config.reconnect.enabled,false)
 })
-test('original skill body and all six references are preserved', async () => {
+test('original skill body and all upstream references are preserved', async () => {
  const skill=await plugin.upstreamSkill()
  const raw=await readFile(skill.path,'utf8')
  const match=/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(raw)
@@ -51,7 +51,7 @@ test('original skill body and all six references are preserved', async () => {
  assert.deepEqual(skill.metadata,metadata.metadata)
  assert.equal(skill.resourceBase.path,plugin.upstreamPaths().skillDir)
  const refs=await readdir(join(skill.resourceBase.path,'references'))
- assert.equal(refs.filter(n=>n.endsWith('.md')).length,6)
+ assert.equal(refs.filter(n=>n.endsWith('.md')).length,7)
 })
 test('bundle patch inserts plugin with valid id/name', async () => {
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'))

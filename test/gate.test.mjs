@@ -490,3 +490,5 @@ test('a synchronous unlock hook failure is logged and does not abort the unlock'
   gate.gate(agent)
   assert.equal(gate.unlock(agent), true)
   assert.equal(h.state.warnings.length, 1)
+  assert.match(h.state.warnings[0], /unlock hook failed/u)
+})
