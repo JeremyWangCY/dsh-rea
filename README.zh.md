@@ -75,11 +75,13 @@ REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、�
 
 ## 安装
 
-尚未发布 npm，请在 DSH 插件管理器中从仓库安装：
+本包**未发布到 npm**——npm 上的 `dsh-rea` 是另一个无关的同名适配器。请安装 GitHub Release 的 tarball，这正对应插件市场的 `github:` 来源格式：
 
 ```text
-github:JeremyWangCY/dsh-rea
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.tgz
 ```
+
+必须使用 Release 资产（市场解析的是 `releases/download/<tag>/<name>-<version>.tgz` 这种 URL）。每个 Release 的说明里写明所固定的 `rea-agents` 版本。`@deepseek-ai/dsh-*` 是 peerDependencies，由 DSH 宿主提供，不由本包安装。
 
 本地开发可通过插件管理器安装此源码目录的绝对路径。必须安装到**当前活动 profile**；使用 Web 界面不一定代表 `web` profile，桌面版也承载同一界面。
 

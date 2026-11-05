@@ -75,11 +75,15 @@ Because DSH caches each package's client metadata for the lifetime of a Host pro
 
 ## Install
 
-The package has not been published to npm. Install from the repository using DSH's plugin manager, or select a packaged release tarball when available:
+This package is **not on npm** — the `dsh-rea` name on npm belongs to a different, unrelated adapter. Install it from the GitHub release tarball instead, which is what the plugin market's `github:` source consumes:
 
 ```text
-github:JeremyWangCY/dsh-rea
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.tgz
 ```
+
+A release asset is required (the market resolves the `releases/download/<tag>/<name>-<version>.tgz` URL): the repository alone is not enough because it is TypeScript-free only by accident — `lib/` ships pre-built, but there is no build step and no committed dist for other branches. Each release states the pinned `rea-agents` version in its notes.
+
+Verified before publishing: `pnpm test` 70/70, `pnpm verify` 35/35, `pnpm verify:lazy` 7/7, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 229 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package.
 
 For local development, install the absolute directory of this checkout through the plugin manager. Use the currently active profile; Web UI does not necessarily mean the `web` profile (desktop can host the same UI).
 
