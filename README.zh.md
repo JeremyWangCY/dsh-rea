@@ -79,7 +79,7 @@
 
 **模型可以自己加载类别（需要显式开启）。** 设置 `modelLoader: true`（仅 lazy 模式）后，插件会注册两个小工具 `rea_load({ categories })` 与 `rea_unload()`，名字不带 `mcp__rea__` 前缀，所以门禁不会把它们藏起来。`rea_load` 只对调用它的会话生效，一次最多新增 `loaderMaxPerCall`（默认 3）个类别，要加载的都已加载时什么都不做，并返回这次新增了多少工具、多少 KB。加载会改变请求前缀并造成一次 prompt 缓存未命中，所以工具描述会提醒模型每个任务只加载一次。默认关闭：这两个工具会出现在每次请求里，并且让模型不经 `/rea` 就能自行扩大可见范围。
 
-恢复会话时，`/rea on|add|off` 与每一次成功的 `rea_load`/`rea_unload` 会按顺序重放，所以会话回来时类别与结束时完全一致。
+恢复会话时，`/rea on|add|off` 与每一次成功的 `rea_load`/`rea_unload` 会按顺序重放，所以会话回来时类别与结束时一致。单独的 `/rea`（以及关键词解锁）在记录里不带具体类别，重放时按当前的 `defaultCategories`（`keywordCategories`）计算：改了这些设置后，恢复的会话会跟随新值。
 
 Windows 上做 native 分析的推荐配置（REA 的抓包/信号工具只支持 Linux）：
 
@@ -154,7 +154,7 @@ https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.t
 | keywordCategories | [native] | 关键词解锁揭示哪些类别（仅在开启 `keywordUnlock` 时） |
 | modelLoader | false | 给模型注册 `rea_load` / `rea_unload`（仅 lazy 模式） |
 | loaderMaxPerCall | 3 | 一次 `rea_load` 最多新增几个类别 |
-| alwaysDeny | [] | 任何人都不能揭示的类别，即使用 `all` 也不行（例如 Windows 上的 `[capture]`） |
+| alwaysDeny | [] | 任何人都不能揭示的类别，即使用 `all` 也不行（例如 Windows 上的 `[capture]`）。仅 lazy 模式有效；`exposure: always` 时激活会记录一条警告，不做任何屏蔽 |
 | serverName | rea | 官方桥接命名空间 |
 | tools | all | 兼容标记；不再支持删减子集 |
 | nodeCommand | 空 | 默认宿主可执行文件；Electron 加 ELECTRON_RUN_AS_NODE=1；必要时指定独立 Node |
@@ -181,7 +181,7 @@ Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插�
 
 ## 已验证与未验证
 
-`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：全部名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发、类别指令与带大小的状态；`test/categories.test.mjs` 启动已安装的 REA，任何工具落在命名类别之外即失败；`test/loader.test.mjs` 覆盖 `rea_load`/`rea_unload`；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 160 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 10 项按需加载校验（含经真实命令服务的部分揭示）。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
+`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：全部名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发、类别指令与带大小的状态；`test/categories.test.mjs` 启动已安装的 REA，任何工具落在命名类别之外即失败；`test/loader.test.mjs` 覆盖 `rea_load`/`rea_unload`；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 166 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 10 项按需加载校验（含经真实命令服务的部分揭示）。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
 
 **未声称**：全部操作实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
 
