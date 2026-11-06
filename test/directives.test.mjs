@@ -59,3 +59,10 @@ test('list is an exact single word, like status', () => {
   assert.deepEqual(parseReaInput(' LIST '), { directive: 'list', categories: null, request: '' })
   assert.deepEqual(parseReaInput('list the imports of this dll'), enable('list the imports of this dll'))
 })
+
+test('a comma list with no known category is a request, not a typo list', () => {
+  assert.deepEqual(parseReaInput('add logging, tests'), enable('add logging, tests'))
+  assert.deepEqual(parseReaInput('on startup, crashes'), enable('on startup, crashes'))
+  // One known category next to an unknown word is still read as a typo list.
+  assert.deepEqual(parseReaInput('add web,wsm'), { directive: 'add', categories: ['web', 'wsm'], request: '' })
+})
