@@ -82,6 +82,7 @@ pass('synthetic REA generation registered through the real registry', { tools: g
 const fakeSession = () => ({ snapshotEvents: () => [], append: () => 0 })
 const plain = { id: 'session-plain', session: fakeSession(), followup: () => {} }
 const rea = { id: 'session-rea', session: fakeSession(), followup: () => {} }
+const part = { id: 'session-partial', session: fakeSession(), followup: () => {} }
 const agentScopes = new Map()
 // A real agent scope is minted by the loop plugin (AgentLoop.inject =
 // ['agents','sessions','llm','tools','systemPrompt','sessionProjections']), so
@@ -93,7 +94,7 @@ const agentHost = {
   name: 'lazy-exposure-agent-host',
   inject: ['tools', 'systemPrompt'],
   apply(hostCtx) {
-    for (const agent of [plain, rea]) {
+    for (const agent of [plain, rea, part]) {
       const scope = createScope(hostCtx, agent)
       agentScopes.set(agent, scope)
       agent.ctx = scope.ctx
@@ -105,10 +106,14 @@ await ctx.plugin(agentHost)
 assert.ok(plain.ctx !== undefined && rea.ctx !== undefined)
 
 const unlocked = []
-const handle = installGate(ctx, { serverName: 'rea', onUnlock: (agent) => unlocked.push(agent) })
+// The synthetic tools carry no real REA names, so map them onto two real
+// categories by index: tool_0..tool_5 are native, tool_6..tool_11 are web.
+const categoryOf = (name) => (Number(name.slice('tool_'.length)) < 6 ? 'native' : 'web')
+const handle = installGate(ctx, { serverName: 'rea', categoryOf, onUnlock: (agent) => unlocked.push(agent) })
 registerReaCommand(ctx, { gate: handle.gate })
 handle.gate.gateOrRestore(plain)
 handle.gate.gateOrRestore(rea)
+handle.gate.gateOrRestore(part)
 
 const globalTools = (await ctx.systemPrompt.assemble()).tools.filter((tool) => tool.name.startsWith('mcp__rea__'))
 report.measurements.globalSchemaBytes = Buffer.byteLength(JSON.stringify(globalTools))
@@ -151,8 +156,43 @@ assert.deepEqual(await reaToolsFor(ctx, plain), [])
 assert.equal((await reaToolsFor(ctx, rea)).length, 12)
 pass('a re-sync re-masks gated agents and leaves unlocked agents alone')
 
-handle.dispose()
+// Partial exposure: reveal one category, then add the other, through the real
+// command service.
+const tools = (names) => names.sort()
+const nativeNames = Array.from({ length: 6 }, (_, index) => 'mcp__rea__tool_' + index)
+const allNames = Array.from({ length: 12 }, (_, index) => 'mcp__rea__tool_' + index)
+assert.deepEqual(await reaToolsFor(ctx, part), [])
+const onNative = await ctx.commands.execute(part, '/rea on native', [], new AbortController().signal)
+assert.equal(onNative.result.kind, 'success', JSON.stringify(onNative.result))
+assert.deepEqual(tools(await reaToolsFor(ctx, part)), tools([...nativeNames]))
+assert.deepEqual(await reaToolsFor(ctx, plain), [])
+assert.equal((await reaToolsFor(ctx, rea)).length, 12)
+report.measurements.partialSchemaBytes = Buffer.byteLength(JSON.stringify((await ctx.systemPrompt.assemble({ agent: part, scope: part })).tools))
+assert.ok(report.measurements.partialSchemaBytes > report.measurements.gatedSchemaBytes)
+assert.ok(report.measurements.partialSchemaBytes < report.measurements.unlockedSchemaBytes)
+assert.equal(handle.gate.visibility(part).state, 'partial')
+pass('/rea on native gives the agent exactly the native tools; siblings are unchanged', {
+  partialSchemaBytes: report.measurements.partialSchemaBytes,
+  unlockedSchemaBytes: report.measurements.unlockedSchemaBytes,
+})
+const addWeb = await ctx.commands.execute(part, '/rea add web', [], new AbortController().signal)
+assert.equal(addWeb.result.kind, 'success', JSON.stringify(addWeb.result))
+assert.deepEqual(tools(await reaToolsFor(ctx, part)), tools([...allNames]))
+assert.deepEqual(await reaToolsFor(ctx, plain), [])
+pass('/rea add web widens the same agent to both categories')
+// A new generation re-masks a partial agent against the new names.
 for (const dispose of next.values()) dispose()
+const third = await registerGeneration(ctx, 12, 'gen-3')
+await ctx.commands.execute(part, '/rea on native', [], new AbortController().signal)
+handle.resync()
+assert.deepEqual(tools(await reaToolsFor(ctx, part)), tools([...nativeNames]))
+const off = await ctx.commands.execute(part, '/rea off', [], new AbortController().signal)
+assert.equal(off.result.kind, 'success', JSON.stringify(off.result))
+assert.deepEqual(await reaToolsFor(ctx, part), [])
+pass('a re-sync keeps a partial agent on its categories, and /rea off hides it again')
+
+handle.dispose()
+for (const dispose of third.values()) dispose()
 for (const scope of agentScopes.values()) await scope.dispose()
 
 console.log('REPORT', JSON.stringify(report))
