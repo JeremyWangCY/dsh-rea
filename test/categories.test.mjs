@@ -20,15 +20,15 @@ test('every category id has a description of at most 80 characters', () => {
 
 test('categoryOf maps representative names per category', () => {
   const expected = {
-    native: ['open_binary', 'procedure_pseudo_code', 'xrefs', 'list_strings', 'inspect_go_binary', 'set_comment'],
-    android: ['inspect_android_package', 'list_adb_devices', 'inspect_apktool_client'],
-    apple: ['get_objc_classes', 'inspect_macho', 'inspect_plist', 'demangle_swift'],
-    managed: ['inspect_managed_artifact', 'compare_managed_members'],
+    native: ['open_binary', 'procedure_pseudo_code', 'xrefs', 'list_strings', 'inspect_go_binary', 'set_comment', 'inspect_pe_imports', 'inspect_desktop_application', 'inspect_byte_entropy', 'inspect_elf_notes', 'inspect_analysis_settings'],
+    android: ['inspect_android_package', 'list_adb_devices', 'inspect_apktool_client', 'inspect_apk_signature'],
+    apple: ['get_objc_classes', 'inspect_macho', 'inspect_plist', 'demangle_swift', 'inspect_apple_ips', 'open_bundle_resources'],
+    managed: ['inspect_managed_artifact', 'compare_managed_members', 'inspect_il2cpp_metadata', 'inspect_python_pyc', 'inspect_erlang_beam'],
     web: ['inspect_web_page', 'analyze_web_bundle', 'list_electron_targets', 'recover_javascript_sources', 'compare_source_to_bundle'],
     wasm: ['inspect_wasm_artifact', 'compare_wasm_interfaces'],
     dynamic: ['start_frida_session', 'gdb_console', 'rizin_debug_command', 'capture_process_scenario', 'observe_native_calls'],
     providers: ['cutter_command', 'open_jeb_project', 'execute_rizin_command'],
-    firmware: ['inspect_firmware_regions', 'inspect_sqlite_database', 'inspect_dart_aot'],
+    firmware: ['inspect_firmware_regions', 'inspect_sqlite_database', 'inspect_dart_aot', 'inspect_devicetree'],
     capture: ['inspect_packet_capture', 'decode_signal_recording', 'inspect_pcap_capture'],
     reconstruction: ['project_android_application_graph', 'trace_application_feature', 'list_unknowns', 'export_evidence_bundle', 'compare_bundles'],
   }
