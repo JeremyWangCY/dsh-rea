@@ -28,6 +28,6 @@
     "@deepseek-ai/schemastery": "3.18.2"
   },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" }, "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-connection"] } },
-  "engines": { "node": "^22.19.0 || ^24.11.0 || >=26.0.0" },
+  "engines": { "node": "^22.23.4 || ^24.22.1 || >=26.12.1" },
   "keywords": ["dsh-plugin", "deepseek-harness", "reverse-engineering", "mcp", "rea"]
 }

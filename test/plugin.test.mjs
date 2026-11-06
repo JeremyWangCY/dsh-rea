@@ -275,3 +275,10 @@ test('defaultCategories that alwaysDeny leaves nothing of is rejected, partial o
   await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['native', 'capture'], alwaysDeny: ['capture'] }))
   await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['all'], alwaysDeny: ['capture'] }))
 })
+
+test('the supported Node range matches the pinned REA release', async () => {
+  const rea = JSON.parse(await readFile(join(plugin.upstreamPaths().root, 'package.json'), 'utf8'))
+  const own = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(plugin.SUPPORTED_NODE, rea.engines.node)
+  assert.equal(own.engines.node, rea.engines.node)
+})

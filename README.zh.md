@@ -162,7 +162,7 @@ https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.t
 | toolCallTimeoutMs | 300000 | MCP 调用超时；不保证外层 agent/PTC 期限更长 |
 | failOnStartupError | true | 启动失败明确报错，不静默伪装成“安装成功但没工具” |
 
-Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插件激活不安装/升级运行时或分析引擎，不修改无关审批/preset 设置。自动重连关闭：新 REA 进程会丢失当前目标/provider/保留证据，应断线后显式重载。
+Node 支持范围：`^22.23.4 || ^24.22.1 || >=26.12.1`，不支持 23/25。插件激活不安装/升级运行时或分析引擎，不修改无关审批/preset 设置。自动重连关闭：新 REA 进程会丢失当前目标/provider/保留证据，应断线后显式重载。
 
 ## native 与 PTC
 

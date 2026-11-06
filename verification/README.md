@@ -13,7 +13,7 @@ The plugin launches the **unchanged pinned `rea-agents@6.4.0` MCP executable** a
 
 ## Reproduce
 
-Use Node `^22.19.0 || ^24.11.0 || >=26.0.0`:
+Use Node `^22.23.4 || ^24.22.1 || >=26.12.1`:
 
 ```sh
 pnpm install --frozen-lockfile
