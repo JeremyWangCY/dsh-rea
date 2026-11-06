@@ -77,7 +77,7 @@ The rows add up to the catalog minus about 200 bytes of JSON array punctuation. 
 
 A list with an unknown category is refused whole rather than half-applied, and `/rea on this binary` is still a request (a word that is not a category keeps the input a request).
 
-**The model can load categories itself.** Under lazy exposure the plugin registers two small tools, `rea_load({ categories })` and `rea_unload()`, named outside the `mcp__rea__` prefix so the gate never hides them. `rea_load` reveals categories for the calling session only, accepts at most `loaderMaxPerCall` (default 3) *new* categories per call, does nothing when everything asked for is already loaded, and returns how many tools and KB the load added. Loading changes the request prefix and costs a prompt-cache miss, so the tool description tells the model to load once per task. Turn the tools off with `modelLoader: false`.
+**The model can load categories itself, if you opt in.** With `modelLoader: true` (lazy exposure only) the plugin registers two small tools, `rea_load({ categories })` and `rea_unload()`, named outside the `mcp__rea__` prefix so the gate never hides them. `rea_load` reveals categories for the calling session only, accepts at most `loaderMaxPerCall` (default 3) *new* categories per call, does nothing when everything asked for is already loaded, and returns how many tools and KB the load added. Loading changes the request prefix and costs a prompt-cache miss, so the tool description tells the model to load once per task. They are off by default, because they ride along with every request and let the model widen its own view without a `/rea`.
 
 A resumed session replays `/rea on|add|off` and every successful `rea_load`/`rea_unload` in order, so it comes back with exactly the categories it ended with.
 
@@ -154,7 +154,7 @@ The bundle inserts the host plugin. Defaults load the catalog on demand and leav
 | keywordUnlock | false | Also let a real user message reveal the catalogue by mentioning reverse engineering. Off by default; see above |
 | defaultCategories | [all] | Categories a bare `/rea` or `/rea <request>` reveals. `all` keeps the whole-catalogue behaviour; unknown ids stop activation |
 | keywordCategories | [native] | Categories a keyword unlock reveals (only with `keywordUnlock`) |
-| modelLoader | true | Register `rea_load` / `rea_unload` for the model (lazy exposure only) |
+| modelLoader | false | Register `rea_load` / `rea_unload` for the model (lazy exposure only) |
 | loaderMaxPerCall | 3 | Most new categories one `rea_load` call may add |
 | alwaysDeny | [] | Categories nobody can reveal, even with `all` (e.g. `[capture]` on Windows) |
 | serverName | rea | Official bridge namespace |

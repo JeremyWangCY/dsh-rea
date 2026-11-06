@@ -169,7 +169,7 @@ test('category config defaults keep upstream behavior', () => {
   const config = plugin.Config({})
   assert.deepEqual(config.defaultCategories, ['all'])
   assert.deepEqual(config.keywordCategories, ['native'])
-  assert.equal(config.modelLoader, true)
+  assert.equal(config.modelLoader, false)
   assert.equal(config.loaderMaxPerCall, 3)
   assert.deepEqual(config.alwaysDeny, [])
   assert.throws(() => plugin.Config({ loaderMaxPerCall: 0 }))
@@ -216,19 +216,19 @@ test('defaultCategories must not be empty and alwaysDeny must not hide everythin
   await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['Native'], keywordCategories: [], alwaysDeny: ['capture'] }))
 })
 
-test('lazy exposure registers the loader tools and names the default categories', async () => {
+test('modelLoader true registers the loader tools, and the log names the default categories', async () => {
   const { ctx, state } = applyCtx()
-  await plugin.apply(ctx, plugin.Config({ defaultCategories: ['native', 'android'] }))
+  await plugin.apply(ctx, plugin.Config({ modelLoader: true, defaultCategories: ['native', 'android'] }))
   assert.deepEqual(state.tools.sort(), ['rea_load', 'rea_unload'])
   assert.ok(state.logs.some((line) => line.includes('reveals native, android')), state.logs.join('\n'))
 })
 
-test('modelLoader false and exposure always register no loader tools', async () => {
+test('the loader tools are off by default, and exposure always registers none even when on', async () => {
   const off = applyCtx()
-  await plugin.apply(off.ctx, plugin.Config({ modelLoader: false }))
+  await plugin.apply(off.ctx, plugin.Config({}))
   assert.deepEqual(off.state.tools, [])
   const always = applyCtx()
-  await plugin.apply(always.ctx, plugin.Config({ exposure: 'always' }))
+  await plugin.apply(always.ctx, plugin.Config({ exposure: 'always', modelLoader: true }))
   assert.deepEqual(always.state.tools, [])
 })
 

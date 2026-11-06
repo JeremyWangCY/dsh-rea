@@ -77,7 +77,7 @@
 
 含未知类别的列表会被整体拒绝，而不是只应用一半；`/rea on this binary` 仍然是一条请求（出现不是类别的词，整段就当请求）。
 
-**模型可以自己加载类别。** lazy 模式下插件会注册两个小工具 `rea_load({ categories })` 与 `rea_unload()`，名字不带 `mcp__rea__` 前缀，所以门禁不会把它们藏起来。`rea_load` 只对调用它的会话生效，一次最多新增 `loaderMaxPerCall`（默认 3）个类别，要加载的都已加载时什么都不做，并返回这次新增了多少工具、多少 KB。加载会改变请求前缀并造成一次 prompt 缓存未命中，所以工具描述会提醒模型每个任务只加载一次。用 `modelLoader: false` 可关闭。
+**模型可以自己加载类别（需要显式开启）。** 设置 `modelLoader: true`（仅 lazy 模式）后，插件会注册两个小工具 `rea_load({ categories })` 与 `rea_unload()`，名字不带 `mcp__rea__` 前缀，所以门禁不会把它们藏起来。`rea_load` 只对调用它的会话生效，一次最多新增 `loaderMaxPerCall`（默认 3）个类别，要加载的都已加载时什么都不做，并返回这次新增了多少工具、多少 KB。加载会改变请求前缀并造成一次 prompt 缓存未命中，所以工具描述会提醒模型每个任务只加载一次。默认关闭：这两个工具会出现在每次请求里，并且让模型不经 `/rea` 就能自行扩大可见范围。
 
 恢复会话时，`/rea on|add|off` 与每一次成功的 `rea_load`/`rea_unload` 会按顺序重放，所以会话回来时类别与结束时完全一致。
 
@@ -152,7 +152,7 @@ https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.t
 | keywordUnlock | false | 是否额外允许“真实用户消息命中逆向关键词”自动解锁。默认关闭，见上文原因 |
 | defaultCategories | [all] | 单独的 `/rea` 或 `/rea <请求>` 揭示哪些类别。`all` 保持整套目录的行为；未知 id 会让激活失败 |
 | keywordCategories | [native] | 关键词解锁揭示哪些类别（仅在开启 `keywordUnlock` 时） |
-| modelLoader | true | 给模型注册 `rea_load` / `rea_unload`（仅 lazy 模式） |
+| modelLoader | false | 给模型注册 `rea_load` / `rea_unload`（仅 lazy 模式） |
 | loaderMaxPerCall | 3 | 一次 `rea_load` 最多新增几个类别 |
 | alwaysDeny | [] | 任何人都不能揭示的类别，即使用 `all` 也不行（例如 Windows 上的 `[capture]`） |
 | serverName | rea | 官方桥接命名空间 |
