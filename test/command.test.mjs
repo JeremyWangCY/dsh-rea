@@ -361,3 +361,16 @@ test('/rea list changes nothing and the status line points at it', () => {
   const status = state.definition.handler({ agent, rawInput: 'status', attachments: [] })
   assert.match(status.text, /\/rea list/u)
 })
+
+test('/rea list and /rea status say so when no REA tools are registered', () => {
+  const { ctx, state } = harness()
+  const empty = { tools: { schemas: () => [], restrict: () => () => {} } }
+  const gate = new ReaVisibilityGate(empty, 'rea', { warn() {} })
+  const agent = { id: 'a', session: { snapshotEvents: () => [] }, ctx: { tools: { restrict: () => () => {} } }, followup() {} }
+  registerReaCommand(ctx, { gate })
+  for (const rawInput of ['list', 'status']) {
+    const result = state.definition.handler({ agent, rawInput, attachments: [] })
+    assert.equal(result.kind, 'success', rawInput)
+    assert.match(result.text, /No REA tools are registered/u, rawInput)
+  }
+})

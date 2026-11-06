@@ -275,3 +275,16 @@ test('defaultCategories that alwaysDeny leaves nothing of is rejected, partial o
   await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['native', 'capture'], alwaysDeny: ['capture'] }))
   await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['all'], alwaysDeny: ['capture'] }))
 })
+
+test('alwaysDeny under exposure always is reported, since nothing can mask it there', async () => {
+  const { ctx } = applyCtx()
+  const warnings = []
+  ctx.logger.warn = (text) => warnings.push(text)
+  await plugin.apply(ctx, plugin.Config({ exposure: 'always', alwaysDeny: ['capture'] }))
+  assert.ok(warnings.some((text) => /alwaysDeny/u.test(text) && /exposure: lazy/u.test(text)), warnings.join('\n'))
+  const quiet = applyCtx()
+  const none = []
+  quiet.ctx.logger.warn = (text) => none.push(text)
+  await plugin.apply(quiet.ctx, plugin.Config({ exposure: 'always' }))
+  assert.deepEqual(none, [])
+})

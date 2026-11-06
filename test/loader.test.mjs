@@ -193,3 +193,17 @@ test('the registry-facing definition validates its arguments', async () => {
   assert.deepEqual(schema.required, ['categories'])
   assert.equal(schema.properties.categories.type, 'array')
 })
+
+test('a request refused by alwaysDeny says so instead of claiming it is already loaded', async () => {
+  const { run, agentFor, gate } = setup({ alwaysDeny: ['capture'] })
+  const hidden = agentFor('a')
+  const refused = await run(LOAD_TOOL, { categories: ['capture'] }, hidden)
+  assert.deepEqual(refused.denied, ['capture'])
+  assert.doesNotMatch(refused.note, /already loaded/iu)
+  assert.match(refused.note, /alwaysDeny/u)
+  const full = agentFor('b')
+  gate.reveal(full, ['all'])
+  const onFull = await run(LOAD_TOOL, { categories: ['capture'] }, full)
+  assert.deepEqual(onFull.denied, ['capture'], 'a fully revealed agent still hears what was refused')
+  assert.match(onFull.note, /alwaysDeny/u)
+})
