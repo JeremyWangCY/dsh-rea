@@ -31,48 +31,48 @@
   },
   "byCategory": {
     "native": {
-      "tools": 62,
-      "bytes": 84761
+      "tools": 76,
+      "bytes": 92276
     },
     "android": {
-      "tools": 31,
-      "bytes": 28028
+      "tools": 32,
+      "bytes": 23073
     },
     "apple": {
-      "tools": 11,
-      "bytes": 8513
+      "tools": 13,
+      "bytes": 11423
     },
     "managed": {
-      "tools": 5,
-      "bytes": 35315
+      "tools": 8,
+      "bytes": 13301
     },
     "web": {
-      "tools": 27,
-      "bytes": 287234
+      "tools": 28,
+      "bytes": 46094
     },
     "wasm": {
       "tools": 2,
-      "bytes": 17795
+      "bytes": 3625
     },
     "dynamic": {
       "tools": 24,
-      "bytes": 52351
+      "bytes": 29218
     },
     "providers": {
       "tools": 7,
-      "bytes": 6393
+      "bytes": 6020
     },
     "firmware": {
-      "tools": 8,
-      "bytes": 11861
+      "tools": 9,
+      "bytes": 15453
     },
     "capture": {
       "tools": 6,
-      "bytes": 10194
+      "bytes": 8207
     },
     "reconstruction": {
       "tools": 24,
-      "bytes": 232369
+      "bytes": 24344
     },
     "other": {
       "tools": 0,

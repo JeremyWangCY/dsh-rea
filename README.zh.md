@@ -47,23 +47,23 @@
 ```
 ## 只加载需要的部分（类别）
 
-完整揭示整套目录，native 模式下每次请求要多付 775,022 字节，而大多数会话只用到其中一小块。每个上游工具恰好属于一个**类别**，会话可以只揭示自己需要的类别。以下数据来自 REA 6.7.0 的 `node verify/measure.mjs`：
+完整揭示整套目录，每次请求要多付 273,264 字节的模型侧 schema（REA 6.8.0 默认公布紧凑的输入 schema；设置 `REA_MCP_INPUT_SCHEMA_PROFILE=full` 会更大），而大多数会话只用到其中一小块。每个上游工具恰好属于一个**类别**，会话可以只揭示自己需要的类别。以下数据来自 REA 6.8.0 的 `node verify/measure.mjs`：
 
 | 类别 | 工具数 | 模型侧 schema 字节 |
 |---|---:|---:|
-| `native` | 62 | 84,761 |
-| `android` | 31 | 28,028 |
-| `apple` | 11 | 8,513 |
-| `managed` | 5 | 35,315 |
-| `web` | 27 | 287,234 |
-| `wasm` | 2 | 17,795 |
-| `dynamic` | 24 | 52,351 |
-| `providers` | 7 | 6,393 |
-| `firmware` | 8 | 11,861 |
-| `capture` | 6 | 10,194 |
-| `reconstruction` | 24 | 232,369 |
+| `native` | 76 | 92,276 |
+| `android` | 32 | 23,073 |
+| `apple` | 13 | 11,423 |
+| `managed` | 8 | 13,301 |
+| `web` | 28 | 46,094 |
+| `wasm` | 2 | 3,625 |
+| `dynamic` | 24 | 29,218 |
+| `providers` | 7 | 6,020 |
+| `firmware` | 9 | 15,453 |
+| `capture` | 6 | 8,207 |
+| `reconstruction` | 24 | 24,344 |
 
-各行之和比整套目录少约 200 字节（JSON 数组的标点）。`web` 与 `reconstruction` 最大；`native` 是覆盖面最广的二进制分析族。任何规则都没覆盖的新名字会落进 `other`，它和别的类别一样可加载；`test/categories.test.mjs` 会在 REA 升级后仍有工具落在那里时失败。
+各行之和比整套目录少约 200 字节（JSON 数组的标点）。`native` 是覆盖面最广的二进制分析族，也是最大的一个，所以只用 native 的会话大约只带整套目录的 34%（少约 66%）。任何规则都没覆盖的新名字会落进 `other`，它和别的类别一样可加载；`test/categories.test.mjs` 会在 REA 升级后仍有工具落在那里时失败。
 
 ```text
 /rea                       揭示默认类别（不收窄就是全部）
@@ -181,7 +181,7 @@ Node 支持范围：`^22.23.4 || ^24.22.1 || >=26.12.1`，不支持 23/25。插�
 
 ## 已验证与未验证
 
-`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：全部名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发、类别指令与带大小的状态；`test/categories.test.mjs` 启动已安装的 REA，任何工具落在命名类别之外即失败；`test/loader.test.mjs` 覆盖 `rea_load`/`rea_unload`；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 70 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 7 项按需加载校验。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
+`verify/integration.mjs` 运行真实 Cordis ToolRuntime、原版 MCP 和 DSH worker-thread PTC，对返回结果逐字段深比较。覆盖：全部名称/描述/输入 schema、原版 Skill、六个原版 prompt 的元数据与渲染消息、一次原版 provider completion、JS 分析及数据流追踪、同会话 retained-reference 视图、证据包列表、含一条记录的离线 HAR、含文件的 ZIP 打开/检查/关闭、原版错误、调用前取消、卸载清理、启动失败明确报告。`test/client.test.mjs` 用最小 React/DOM 环境加载**真实浏览器 bundle** 并驱动真正的 `/` 源：空闲时槽位渲染 null 且不发任何请求、源注册、候选过滤、`handled` 选中不改动草稿、必填参数门控、补全请求载荷、预览原文、仅通过 `setDraft` 插入且保留原草稿、错误提示，以及升级后未重启的重启提示。`verify/connection.mjs` 挂载**已安装的** `WebServer` + `Connection` 并走真实线路：无浏览器会话为 401，随后 `prompts/list`/`get`/`complete` 与直连 MCP 深度相等，另验证信封、content-type、Host 信任栅栏与卸载。`test/gate.test.mjs` 覆盖按 agent 掩码、重新同步、恢复会话与“关键词默认不解锁”的策略；`test/command.test.mjs` 覆盖 `/rea` 的指令解析、转发、类别指令与带大小的状态；`test/categories.test.mjs` 启动已安装的 REA，任何工具落在命名类别之外即失败；`test/loader.test.mjs` 覆盖 `rea_load`/`rea_unload`；`verify/lazy-exposure.mjs` 挂载真实 `dsh-system-prompt`/`dsh-tools`/`dsh-skill`，实测被门控 agent 的组装里 REA schema 为零、而桥接仍保留完整世代。`pnpm test` 共 160 项单元/面板测试，`pnpm verify` 为 35 项差分校验，`pnpm verify:lazy` 为 10 项按需加载校验（含经真实命令服务的部分揭示）。需先用受支持 Node 和 pnpm 安装依赖；可选环境变量 `DSH_REA_TEST_MODULE_ROOT` 指向已安装 DSH 的模块根目录，以测试那个 Host 的精确服务版本，默认用本项目测试依赖。结果见源码中的 `verification/integration-report.json`。
 
 **未声称**：全部操作实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
 

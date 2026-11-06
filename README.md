@@ -47,23 +47,23 @@ Return to the previous always-on catalogue:
 ```
 ## Load only what you need (categories)
 
-Revealing the whole catalog costs 775,022 bytes per request in native mode, and most sessions need a slice of it. Every upstream tool belongs to exactly one **category**, and a session can reveal only the categories it needs. Measured on REA 6.7.0 with `node verify/measure.mjs`:
+Revealing the whole catalog costs 273,264 bytes of model-side schema per request (REA 6.8.0 advertises compact input schemas by default; `REA_MCP_INPUT_SCHEMA_PROFILE=full` makes it larger), and most sessions need a slice of it. Every upstream tool belongs to exactly one **category**, and a session can reveal only the categories it needs. Measured on REA 6.8.0 with `node verify/measure.mjs`:
 
 | Category | Tools | Model-side schema bytes |
 |---|---:|---:|
-| `native` | 62 | 84,761 |
-| `android` | 31 | 28,028 |
-| `apple` | 11 | 8,513 |
-| `managed` | 5 | 35,315 |
-| `web` | 27 | 287,234 |
-| `wasm` | 2 | 17,795 |
-| `dynamic` | 24 | 52,351 |
-| `providers` | 7 | 6,393 |
-| `firmware` | 8 | 11,861 |
-| `capture` | 6 | 10,194 |
-| `reconstruction` | 24 | 232,369 |
+| `native` | 76 | 92,276 |
+| `android` | 32 | 23,073 |
+| `apple` | 13 | 11,423 |
+| `managed` | 8 | 13,301 |
+| `web` | 28 | 46,094 |
+| `wasm` | 2 | 3,625 |
+| `dynamic` | 24 | 29,218 |
+| `providers` | 7 | 6,020 |
+| `firmware` | 9 | 15,453 |
+| `capture` | 6 | 8,207 |
+| `reconstruction` | 24 | 24,344 |
 
-The rows add up to the catalog minus about 200 bytes of JSON array punctuation. `web` and `reconstruction` are the two big ones; `native` is the broad binary-analysis family. A name no rule maps yet falls into `other`, which is loadable like any category, and `test/categories.test.mjs` fails on an REA bump that leaves any tool there.
+The rows add up to the catalog minus about 200 bytes of JSON array punctuation. `native` is the broad binary-analysis family and the largest, so a native-only session carries about 34% of the catalog (about 66% less). A name no rule maps yet falls into `other`, which is loadable like any category, and `test/categories.test.mjs` fails on an REA bump that leaves any tool there.
 
 ```text
 /rea                       reveal the default categories (everything unless you narrow it)
@@ -129,7 +129,7 @@ https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.t
 
 A release asset is required (the market resolves the `releases/download/<tag>/<name>-<version>.tgz` URL): the repository alone is not enough because it is TypeScript-free only by accident — `lib/` ships pre-built, but there is no build step and no committed dist for other branches. Each release states the pinned `rea-agents` version in its notes.
 
-Verified before publishing: `pnpm test` 70/70, `pnpm verify` 35/35, `pnpm verify:lazy` 7/7, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 229 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package.
+Verified before publishing: `pnpm test` 160/160, `pnpm verify` 35/35, `pnpm verify:lazy` 10/10, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 229 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package.
 
 For local development, install the absolute directory of this checkout through the plugin manager. Use the currently active profile; Web UI does not necessarily mean the `web` profile (desktop can host the same UI).
 
@@ -183,7 +183,7 @@ Use the original skill's routing, Evidence and provider-recovery instructions. R
 
 ## Verification and limits
 
-`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: every upstream name/description/input schema, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the actual `/` source: idle silence (the session slot renders nothing and no request is sent), source registration, candidate filtering, a `handled` pick that writes no draft, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, error surfacing, and the post-upgrade restart hint. `verify/connection.mjs` mounts the real installed `WebServer` + `Connection` and speaks the real wire: 401 without the browser session, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus envelope, content-type, Host-fence and disposal refusals. `test/gate.test.mjs` covers per-agent masking, re-sync, resume behaviour and the default "keywords do not reveal" policy; `test/command.test.mjs` covers `/rea` directive parsing, forwarding, the category directives and the sized status; `test/categories.test.mjs` spawns the installed REA and fails if any of its tools falls outside a named category; `test/loader.test.mjs` covers `rea_load`/`rea_unload`. `verify/lazy-exposure.mjs` mounts the real `dsh-system-prompt`/`dsh-tools`/`dsh-skill` services and measures that a gated agent's assembly carries zero `mcp__rea__` schemas while the bridge keeps its full generation installed. `pnpm test` runs 70 unit/harness tests; `pnpm verify` runs the differential suite and `pnpm verify:lazy` the 7-check lazy-exposure suite. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
+`verify/integration.mjs` runs the real Cordis ToolRuntime, original upstream MCP and DSH worker-thread PTC, then deeply compares results. Covered: every upstream name/description/input schema, original skill, the six original prompt metadata sets and their rendered messages, an original provider completion, JS analysis and data-flow tracing, retained-reference view, Evidence bundle listing, a one-record offline HAR, one-member ZIP lifecycle/inventory, upstream errors, pre-dispatch cancellation, disposal, explicit startup failure. `test/client.test.mjs` loads the real browser bundle against a minimal React/DOM harness and drives the actual `/` source: idle silence (the session slot renders nothing and no request is sent), source registration, candidate filtering, a `handled` pick that writes no draft, argument gating, completion payloads, exact preview text, draft-preserving insertion through `setDraft` only, error surfacing, and the post-upgrade restart hint. `verify/connection.mjs` mounts the real installed `WebServer` + `Connection` and speaks the real wire: 401 without the browser session, then `prompts/list`/`get`/`complete` deep-equal to a direct MCP client, plus envelope, content-type, Host-fence and disposal refusals. `test/gate.test.mjs` covers per-agent masking, re-sync, resume behaviour and the default "keywords do not reveal" policy; `test/command.test.mjs` covers `/rea` directive parsing, forwarding, the category directives and the sized status; `test/categories.test.mjs` spawns the installed REA and fails if any of its tools falls outside a named category; `test/loader.test.mjs` covers `rea_load`/`rea_unload`. `verify/lazy-exposure.mjs` mounts the real `dsh-system-prompt`/`dsh-tools`/`dsh-skill` services and measures that a gated agent's assembly carries zero `mcp__rea__` schemas while the bridge keeps its full generation installed. `pnpm test` runs 160 unit/harness tests; `pnpm verify` runs the differential suite and `pnpm verify:lazy` the 10-check lazy-exposure suite, which includes partial reveals through the real command service. Install dependencies with a supported Node and pnpm first. Optional `DSH_REA_TEST_MODULE_ROOT` points at an installed DSH module root for exercising those exact Host services; by default the checkout's test dependencies are used. See `verification/integration-report.json` in the source checkout.
 
 Not claimed: all upstream operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits; exhaustive completion coverage for every external provider. External providers require task-specific verification.
 
