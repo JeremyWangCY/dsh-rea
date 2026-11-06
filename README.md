@@ -164,7 +164,7 @@ The bundle inserts the host plugin. Defaults load the catalog on demand and leav
 | toolCallTimeoutMs | 300000 | MCP call timeout; not an assurance that the outer agent/PTC deadline is longer |
 | failOnStartupError | true | Report startup failure rather than silently exposing an empty tool set |
 
-Supported Node range: `^22.23.4 || ^24.22.1 || >=26.12.1`; 23/25 are unsupported. No runtime or analysis engine is installed/upgraded by plugin activation. Existing unrelated approval/preset settings are not changed. Automatic reconnection is disabled deliberately: a new REA process loses target/provider/retained Evidence state; reload explicitly after a disconnect.
+Supported Node range: `^22.19.0 || ^24.11.0 || >=26.0.0`; 23/25 are unsupported. No runtime or analysis engine is installed/upgraded by plugin activation. Existing unrelated approval/preset settings are not changed. Automatic reconnection is disabled deliberately: a new REA process loses target/provider/retained Evidence state; reload explicitly after a disconnect.
 
 ### Native versus PTC
 
