@@ -4,6 +4,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import yaml from 'js-yaml'
 import * as plugin from '../lib/index.js'
+import { ReaVisibilityGate } from '../lib/gate.js'
 import { renderVendoredBridge } from '../verify/vendor-bridge.mjs'
 
 /**
@@ -162,4 +163,128 @@ test('a skill service returning a disposer object is handled', () => {
   lifespan.onRelock({ unlockedCount: 0 })
   assert.equal(disposed, 1)
   assert.equal(lifespan.isRegistered, false)
+})
+
+test('category config defaults keep upstream behavior', () => {
+  const config = plugin.Config({})
+  assert.deepEqual(config.defaultCategories, ['all'])
+  assert.deepEqual(config.keywordCategories, ['native'])
+  assert.equal(config.modelLoader, false)
+  assert.equal(config.loaderMaxPerCall, 3)
+  assert.deepEqual(config.alwaysDeny, [])
+  assert.throws(() => plugin.Config({ loaderMaxPerCall: 0 }))
+})
+
+/** A plugin context just rich enough for apply() under lazy exposure. */
+function applyCtx() {
+  const state = { tools: [], logs: [], plugins: 0, skills: 0 }
+  const ctx = {
+    skills: { register() { state.skills += 1; return () => {} } },
+    logger: { info(text) { state.logs.push(text) }, warn() {} },
+    tools: {
+      schemas: () => [],
+      register(definition) { state.tools.push(definition.name); return () => {} },
+      restrict: () => () => {},
+    },
+    agents: { list: () => [] },
+    on: () => () => {},
+    plugin() { state.plugins += 1; return Promise.resolve() },
+    inject() {},
+    effect(fn) { return fn() },
+  }
+  return { ctx, state }
+}
+
+test('an unknown category in any list stops activation, naming the field, before any side effect', async () => {
+  for (const field of ['defaultCategories', 'keywordCategories', 'alwaysDeny']) {
+    const { ctx, state } = applyCtx()
+    await assert.rejects(
+      plugin.apply(ctx, plugin.Config({ [field]: ['native', 'nativ'] })),
+      (error) => error.message.includes(field) && error.message.includes('"nativ"') && error.message.includes('Known: native'),
+      field,
+    )
+    assert.equal(state.plugins, 0, field + ': nothing was mounted')
+  }
+})
+
+test('defaultCategories must not be empty and alwaysDeny must not hide everything', async () => {
+  const { ctx } = applyCtx()
+  await assert.rejects(plugin.apply(ctx, plugin.Config({ defaultCategories: [] })), /defaultCategories must name at least one/u)
+  await assert.rejects(plugin.apply(ctx, plugin.Config({ alwaysDeny: ['all'] })), /alwaysDeny cannot contain "all"/u)
+  // Case does not hide a bad id from validation.
+  await assert.rejects(plugin.apply(ctx, plugin.Config({ defaultCategories: ['Native', 'FOO'] })), /defaultCategories/u)
+  await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['Native'], keywordCategories: [], alwaysDeny: ['capture'] }))
+})
+
+test('modelLoader true registers the loader tools, and the log names the default categories', async () => {
+  const { ctx, state } = applyCtx()
+  await plugin.apply(ctx, plugin.Config({ modelLoader: true, defaultCategories: ['native', 'android'] }))
+  assert.deepEqual(state.tools.sort(), ['rea_load', 'rea_unload'])
+  assert.ok(state.logs.some((line) => line.includes('reveals native, android')), state.logs.join('\n'))
+})
+
+test('the loader tools are off by default, and exposure always registers none even when on', async () => {
+  const off = applyCtx()
+  await plugin.apply(off.ctx, plugin.Config({}))
+  assert.deepEqual(off.state.tools, [])
+  const always = applyCtx()
+  await plugin.apply(always.ctx, plugin.Config({ exposure: 'always', modelLoader: true }))
+  assert.deepEqual(always.state.tools, [])
+})
+
+test('the skill follows partial reveals: registered on the first, released after the last relock', () => {
+  const skills = skillsDouble()
+  const lifespan = plugin.createSkillLifespan(skills, { name: 'x' })
+  const registry = new Map()
+  const ctx = {
+    tools: {
+      schemas: () => [{ name: 'mcp__rea__n1' }, { name: 'mcp__rea__w1' }],
+      restrict: (filter) => { const token = {}; registry.set(token, filter); return () => registry.delete(token) },
+    },
+  }
+  const holder = {}
+  const gate = new ReaVisibilityGate(ctx, 'rea', { warn() {} }, () => lifespan.onUnlock(), {
+    onRelock: () => lifespan.onRelock(holder.gate),
+    categoryOf: (name) => (name === 'n1' ? 'native' : 'web'),
+  })
+  holder.gate = gate
+  const agent = (id) => ({ id, ctx: { tools: { restrict: (filter) => ctx.tools.restrict(filter) } }, session: { snapshotEvents: () => [] } })
+  const one = agent('one')
+  const two = agent('two')
+  gate.reveal(one, ['native'])
+  gate.reveal(two, ['web'])
+  assert.equal(skills.state.registered, 1, 'registered once for two partial agents')
+  gate.reveal(one, ['all'])
+  assert.equal(skills.state.registered, 1, 'partial -> all is not a new unlock')
+  gate.relock(one)
+  assert.equal(lifespan.isRegistered, true, 'the other agent still sees REA tools')
+  gate.setCategories(two, [])
+  assert.equal(skills.state.disposed, 1)
+  assert.equal(lifespan.isRegistered, false)
+})
+
+test('defaultCategories that alwaysDeny leaves nothing of is rejected, partial overlap is fine', async () => {
+  await assert.rejects(
+    plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['capture'], alwaysDeny: ['capture'] })),
+    /defaultCategories.*alwaysDeny/u,
+  )
+  await assert.rejects(
+    plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['Capture', 'capture'], alwaysDeny: ['capture'] })),
+    /defaultCategories.*alwaysDeny/u,
+  )
+  await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['native', 'capture'], alwaysDeny: ['capture'] }))
+  await plugin.apply(applyCtx().ctx, plugin.Config({ defaultCategories: ['all'], alwaysDeny: ['capture'] }))
+})
+
+test('alwaysDeny under exposure always is reported, since nothing can mask it there', async () => {
+  const { ctx } = applyCtx()
+  const warnings = []
+  ctx.logger.warn = (text) => warnings.push(text)
+  await plugin.apply(ctx, plugin.Config({ exposure: 'always', alwaysDeny: ['capture'] }))
+  assert.ok(warnings.some((text) => /alwaysDeny/u.test(text) && /exposure: lazy/u.test(text)), warnings.join('\n'))
+  const quiet = applyCtx()
+  const none = []
+  quiet.ctx.logger.warn = (text) => none.push(text)
+  await plugin.apply(quiet.ctx, plugin.Config({ exposure: 'always' }))
+  assert.deepEqual(none, [])
 })

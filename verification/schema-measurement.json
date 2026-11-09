@@ -28,5 +28,55 @@
     "outputSchemaBytes": 2354101,
     "descriptionBytes": 92952,
     "maxPublicNameLength": 48
+  },
+  "byCategory": {
+    "native": {
+      "tools": 76,
+      "bytes": 92276
+    },
+    "android": {
+      "tools": 32,
+      "bytes": 23073
+    },
+    "apple": {
+      "tools": 13,
+      "bytes": 11423
+    },
+    "managed": {
+      "tools": 8,
+      "bytes": 13301
+    },
+    "web": {
+      "tools": 28,
+      "bytes": 46094
+    },
+    "wasm": {
+      "tools": 2,
+      "bytes": 3625
+    },
+    "dynamic": {
+      "tools": 24,
+      "bytes": 29218
+    },
+    "providers": {
+      "tools": 7,
+      "bytes": 6020
+    },
+    "firmware": {
+      "tools": 9,
+      "bytes": 15453
+    },
+    "capture": {
+      "tools": 6,
+      "bytes": 8207
+    },
+    "reconstruction": {
+      "tools": 24,
+      "bytes": 24344
+    },
+    "other": {
+      "tools": 0,
+      "bytes": 0
+    }
   }
 }
