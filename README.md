@@ -121,7 +121,11 @@ Because DSH caches each package's client metadata for the lifetime of a Host pro
 
 ## Install
 
-The scoped package name is `@jwbo6/dsh-rea`; the unscoped `dsh-rea` on npm belongs to a different, unrelated adapter and is not this project. Until the first scoped version is published, install the GitHub Release tarball, which matches the plugin market's `github:` source format:
+Published on npm as **@jwbo6/dsh-rea** (the unscoped dsh-rea there belongs to a different, unrelated adapter). Install it from npm, or from the GitHub Release tarball, which matches the plugin market's `github:` source format:
+
+```text
+@jwbo6/dsh-rea
+```
 
 ```text
 https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/jwbo6-dsh-rea-6.10.1.tgz

@@ -121,7 +121,11 @@ REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、�
 
 ## 安装
 
-npm 上本包的 scope 名为 `@jwbo6/dsh-rea`；未加 scope 的 `dsh-rea` 属于另一个无关适配器，不是本项目。在首个 scoped 版本发布之前，请安装 GitHub Release 的 tarball，这正对应插件市场的 `github:` 来源格式：
+npm 包名为 **`@jwbo6/dsh-rea`**（未加 scope 的 `dsh-rea` 属于另一个无关适配器，不是本项目）。可从 npm 安装，也可用 GitHub Release 的 tarball，后者正对应插件市场的 `github:` 来源格式：
+
+```text
+@jwbo6/dsh-rea
+```
 
 ```text
 https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/jwbo6-dsh-rea-6.10.1.tgz
