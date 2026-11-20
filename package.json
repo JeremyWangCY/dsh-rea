@@ -1,5 +1,5 @@
 {
-  "name": "dsh-rea",
+  "name": "@jeremywangcy/dsh-rea",
   "version": "6.10.1",
   "exports": {
     ".": "./lib/index.js",

@@ -121,10 +121,10 @@ Because DSH caches each package's client metadata for the lifetime of a Host pro
 
 ## Install
 
-This package is **not on npm** — the `dsh-rea` name on npm belongs to a different, unrelated adapter. Install it from the GitHub release tarball instead, which is what the plugin market's `github:` source consumes:
+The scoped package name is `@jeremywangcy/dsh-rea`; the unscoped `dsh-rea` on npm belongs to a different, unrelated adapter and is not this project. Until the first scoped version is published, install the GitHub Release tarball, which matches the plugin market's `github:` source format:
 
 ```text
-https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/dsh-rea-6.10.1.tgz
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/jeremywangcy-dsh-rea-6.10.1.tgz
 ```
 
 A release asset is required (the market resolves the `releases/download/<tag>/<name>-<version>.tgz` URL): the repository alone is not enough because it is TypeScript-free only by accident — `lib/` ships pre-built, but there is no build step and no committed dist for other branches. Each release states the pinned `rea-agents` version in its notes.

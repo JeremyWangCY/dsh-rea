@@ -121,10 +121,10 @@ REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、�
 
 ## 安装
 
-本包**未发布到 npm**——npm 上的 `dsh-rea` 是另一个无关的同名适配器。请安装 GitHub Release 的 tarball，这正对应插件市场的 `github:` 来源格式：
+npm 上本包的 scope 名为 `@jeremywangcy/dsh-rea`；未加 scope 的 `dsh-rea` 属于另一个无关适配器，不是本项目。在首个 scoped 版本发布之前，请安装 GitHub Release 的 tarball，这正对应插件市场的 `github:` 来源格式：
 
 ```text
-https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/dsh-rea-6.10.1.tgz
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/jeremywangcy-dsh-rea-6.10.1.tgz
 ```
 
 必须使用 Release 资产（市场解析的是 `releases/download/<tag>/<name>-<version>.tgz` 这种 URL）。每个 Release 的说明里写明所固定的 `rea-agents` 版本。`@deepseek-ai/dsh-*` 是 peerDependencies，由 DSH 宿主提供，不由本包安装。

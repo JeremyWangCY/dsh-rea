@@ -1,4 +1,4 @@
 # Insert the host-only plugin into the profile Loader tree.
 - insert:
     - id: dsh-rea
-      name: dsh-rea
+      name: '@jeremywangcy/dsh-rea'
