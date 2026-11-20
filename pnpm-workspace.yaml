@@ -1,4 +1,4 @@
 allowBuilds:
-  frida: set this to true or false
+  frida: false
 minimumReleaseAgeExclude:
   - rea-agents@6.10.1
