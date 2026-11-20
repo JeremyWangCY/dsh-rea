@@ -174,15 +174,35 @@ try {
    assert.deepEqual(out.value.result.structuredContent,baseline.structuredContent)
    pass('PTC: complete canonical result deeply equal to direct MCP (no curated omissions)')
   }
-  const parity=async (tool,args,expectedSuccess=true)=> {
+  const parity=async (tool,args,expectedSuccess=true,compare='exact')=> {
    const raw=await direct.callTool({name:tool,arguments:args},undefined,{timeout:300000})
    const actual=await invoke(tool,args)
    if(expectedSuccess) {
     assert.ok(!raw.isError,JSON.stringify(raw))
     assert.equal(actual.isError,false,JSON.stringify(actual))
     const value=mode==='native' ? actual.value : actual.value.result
-    assert.deepEqual(value.content,raw.content)
-    assert.deepEqual(value.structuredContent,raw.structuredContent)
+    if(compare==='bundle-shape') {
+     // get_evidence_bundle reports the ledger of the connection that asks it.
+     // The direct client also ran the offline HAR and ZIP checks earlier in this
+     // script, so the two ledgers legitimately hold different record sets (REA
+     // 6.10 retains those artifact and HAR observations, 6.8 omitted them).
+     // Compare the envelope kind and require every bridged record to be present,
+     // by operation and subject identity, in the direct client's bundle.
+     const parseBody=body=>JSON.parse(Array.isArray(body)
+       ? body.filter(c=>c.type==='text').map(c=>c.text).join('\n')
+       : JSON.stringify(body))
+     const directBody=parseBody(raw.content)
+     const valueBody=parseBody(value.content)
+     const keyOf=record=>`${record.operation}|${JSON.stringify(record.subject?.identity??null)}`
+     assert.equal(valueBody.result.kind,directBody.result.kind)
+     const directKeys=new Set(directBody.result.records.map(keyOf))
+     const missing=valueBody.result.records.filter(record=>!directKeys.has(keyOf(record))).map(keyOf)
+     assert.deepEqual(missing,[],'bridged evidence records absent from the direct ledger')
+     assert.deepEqual(Object.keys(value.structuredContent??{}).sort(),Object.keys(raw.structuredContent??{}).sort())
+    } else {
+     assert.deepEqual(value.content,raw.content)
+     assert.deepEqual(value.structuredContent,raw.structuredContent)
+    }
    } else {
     assert.equal(raw.isError,true)
     if(mode==='native') {
@@ -195,7 +215,7 @@ try {
   }
   await parity('inspect_analysis_view',{source:{kind:'retained-evidence',evidence_id:baselineEnvelope.evidence_id},view:{kind:'summary'}})
   await parity('trace_javascript_semantics',{application:{kind:'retained-evidence',evidence_id:baselineEnvelope.evidence_id},query:{direction:'backward-provenance',seed:{kind:'property',name:'Authorization'}}})
-  await parity('get_evidence_bundle',{detail:'summary'})
+  await parity('get_evidence_bundle',{detail:'summary'},true,'bundle-shape')
   await parity('inspect_web_network_capture',{capture_path:fileURLToPath(new URL('minimal.har',fixture)),format:'har'})
   if(mode==='native') await parity('open_binary',{path:fileURLToPath(new URL('missing.bin',fixture))},false)
   else {

@@ -5,7 +5,7 @@
 > was actually verified stays intact. Current numbers for the dependency this
 > repository pins today live in [`schema-measurement.json`](schema-measurement.json);
 > the reproducibility steps still apply unchanged. See the note at the end of this
-> file for the 6.8.0 re-verification status.
+> file for the 6.8.0 and 6.10.1 re-verification status.
 
 ## Conclusion
 
@@ -108,3 +108,52 @@ Every other compared field — `ino`, `size`, `mode`, `mtimeNs`, `ctimeNs` — m
 is reproducible without the plugin, affects every tool that reads artifacts, and is not
 fixable from this repository. It needs an upstream report; the fixture cannot be adjusted
 to avoid it because the check runs on every entry open.
+
+## Re-verification against 6.10.1 (this change)
+
+The dependency moved from `6.8.0` to `6.10.1`, and the plugin's own version now tracks
+the REA release it wraps (`6.10.1`) instead of an independent `0.x` number, so one
+version pair identifies a shipped adapter.
+
+**Node floor is now enforced upstream.** `rea-agents` checks its own `engines`
+(`^22.23.4 || ^24.22.1 || >=26.12.1`) in `scripts/rea.mjs` and exits with a message
+before serving anything. Both Node installations on this machine were below it: the
+DSH-bundled `24.21.0` and the system `25.2.1`. A dedicated Node `24.22.3` runtime is
+therefore installed outside DSH and selected through the `nodeCommand` setting; the
+plugin does not install or upgrade any runtime itself.
+
+**Catalog and skill, measured from the live server.** `node verify/measure.mjs`:
+**229 → 263 tools**, model-side projection **273,264 → 318,856 bytes** (`fullCatalogBytes`
+352,139), PTC generated SDK text **172,198 → 201,597 bytes**, prompts unchanged at
+**six with 25 arguments**, skill `v49`/`tool_count=229` → **`v63`/`tool_count=263`**, and
+the shipped skill grew from seven to **eight** reference documents.
+
+**Adapter source changes this bump did need**, contrary to the "one line" expectation
+for a routine REA release, because 6.9/6.10 added tools and reference files:
+
+- `lib/categories.js` covers the 26 tools that landed in `other`: five into `native`
+  (`inspect_dwarf_units`, `inspect_kernel_build_config`, `inspect_windows_shortcut`,
+  `inspect_ntfs_journal`, `audit_release_exposure`), two into `managed`
+  (`inspect_nuget_nupkg`, `inspect_maven_gradle_metadata`), three into `web`
+  (`inspect_v8_code_cache`, `inspect_playwright_trace`, `inspect_api_contract`), one into
+  `firmware` (`inspect_uefi_nvram`), and fifteen into `reconstruction` (the ten
+  desktop build-computer tools, `compare_static_and_observed_endpoints`, and the four
+  guidance/investigation helpers `search_guidance`, `guided_workflows`,
+  `read_guidance_section`, `reset_investigation`). No category id, description or
+  default list changed, so `/rea` and the gate behave exactly as before.
+- `test/plugin.test.mjs` pins the skill's reference count at eight.
+- `verify/integration.mjs` compares `get_evidence_bundle` by envelope shape plus
+  "every bridged record appears in the direct ledger" instead of byte equality: the
+  direct client also runs the offline HAR and ZIP checks earlier in that script, and
+  6.10 retains those observations in its ledger where 6.8 omitted them, so the two
+  connections legitimately hold different record sets.
+
+**6.10.0 evidence format is breaking.** Evidence records and hand-built bundles now
+require `evidence_format: 2`; `subject.identity` replaces `subject.digest`/`format`/
+`architecture`, and snapshots use `target: {kind, identity}`. Observations, bundles and
+snapshots saved by an earlier REA must be recreated, not re-exported.
+
+**Result on Node 24.22.3:** `node --test test/*.test.mjs` **166/166**,
+`verify/integration.mjs` **35/35**, `verify/lazy-exposure.mjs` **10/10**.
+`verify/schema-measurement.json`, `verification/integration-report.json`,
+`verification/native-result.json` and `verification/ptc-result.json` were regenerated.

@@ -52,7 +52,7 @@ test('original skill body and all upstream references are preserved', async () =
  assert.deepEqual(skill.metadata,metadata.metadata)
  assert.equal(skill.resourceBase.path,plugin.upstreamPaths().skillDir)
  const refs=await readdir(join(skill.resourceBase.path,'references'))
- assert.equal(refs.filter(n=>n.endsWith('.md')).length,7)
+ assert.equal(refs.filter(n=>n.endsWith('.md')).length,8)
 })
 test('bundle patch inserts plugin with valid id/name', async () => {
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'))

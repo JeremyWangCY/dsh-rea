@@ -1,7 +1,7 @@
 {
   "version": {
     "name": "rea",
-    "version": "6.8.0"
+    "version": "6.10.1"
   },
   "capabilities": {
     "completions": {},
@@ -12,67 +12,57 @@
       "listChanged": true
     }
   },
-  "toolCount": 229,
-  "fullCatalogBytes": 3504973,
-  "modelInputBytes": 273264,
-  "inputSchemaBytes": 121767,
-  "outputSchemaBytes": 3199328,
-  "descriptionBytes": 135737,
+  "toolCount": 263,
+  "fullCatalogBytes": 352139,
+  "modelInputBytes": 318856,
+  "inputSchemaBytes": 159432,
+  "outputSchemaBytes": 1316,
+  "descriptionBytes": 141258,
   "maxPublicNameLength": 48,
-  "previous": {
-    "version": "6.7.0",
-    "toolCount": 207,
-    "fullCatalogBytes": 3158358,
-    "modelInputBytes": 775022,
-    "inputSchemaBytes": 667850,
-    "outputSchemaBytes": 2354101,
-    "descriptionBytes": 92952,
-    "maxPublicNameLength": 48
-  },
   "byCategory": {
     "native": {
-      "tools": 76,
-      "bytes": 92276
+      "tools": 85,
+      "bytes": 99784
     },
     "android": {
-      "tools": 32,
-      "bytes": 23073
+      "tools": 33,
+      "bytes": 32422
     },
     "apple": {
       "tools": 13,
-      "bytes": 11423
+      "bytes": 9314
     },
     "managed": {
-      "tools": 8,
-      "bytes": 13301
+      "tools": 10,
+      "bytes": 15691
     },
     "web": {
-      "tools": 28,
-      "bytes": 46094
+      "tools": 31,
+      "bytes": 53542
     },
     "wasm": {
       "tools": 2,
-      "bytes": 3625
+      "bytes": 3840
     },
     "dynamic": {
-      "tools": 24,
-      "bytes": 29218
+      "tools": 25,
+      "bytes": 28983
     },
     "providers": {
       "tools": 7,
-      "bytes": 6020
+      "bytes": 5534
     },
     "firmware": {
-      "tools": 9,
-      "bytes": 15453
+      "tools": 12,
+      "bytes": 15402
     },
     "capture": {
       "tools": 6,
-      "bytes": 8207
+      "bytes": 8056
     },
     "reconstruction": {
-      "tools": 24,
-      "bytes": 24344
+      "tools": 39,
+      "bytes": 46024
     },
     "other": {
       "tools": 0,

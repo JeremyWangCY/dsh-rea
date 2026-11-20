@@ -1,8 +1,8 @@
 # dsh-rea
 
-把 [REA](https://github.com/morluto/rea) **6.8.0 原版 MCP 全量工具**及同版本 Skill 接入 DeepSeek Harness。[English](README.md)
+把 [REA](https://github.com/morluto/rea) **6.10.1 原版 MCP 全量工具**及同版本 Skill 接入 DeepSeek Harness。[English](README.md)
 
-**默认按需加载**：229 个工具的 schema 与 Skill 只在运行 `/rea` 之后才进入请求；在那之前它们不占上下文（native 模式实测 273,264 字节 / 每次请求，PTC 模式约 171 KB）。
+**默认按需加载**：263 个工具的 schema 与 Skill 只在运行 `/rea` 之后才进入请求；在那之前它们不占上下文（native 模式实测 318,856 字节 / 每次请求，PTC 模式约 197 KB）。
 
 ## 按需加载（v0.4 起的默认行为）
 
@@ -47,23 +47,23 @@
 ```
 ## 只加载需要的部分（类别）
 
-完整揭示整套目录，每次请求要多付 273,264 字节的模型侧 schema（REA 6.8.0 默认公布紧凑的输入 schema；设置 `REA_MCP_INPUT_SCHEMA_PROFILE=full` 会更大），而大多数会话只用到其中一小块。每个上游工具恰好属于一个**类别**，会话可以只揭示自己需要的类别。以下数据来自 REA 6.8.0 的 `node verify/measure.mjs`：
+完整揭示整套目录，每次请求要多付 318,856 字节的模型侧 schema（REA 6.10.1 默认公布紧凑的输入 schema；设置 `REA_MCP_INPUT_SCHEMA_PROFILE=full` 会更大），而大多数会话只用到其中一小块。每个上游工具恰好属于一个**类别**，会话可以只揭示自己需要的类别。以下数据来自 REA 6.10.1 的 `node verify/measure.mjs`：
 
 | 类别 | 工具数 | 模型侧 schema 字节 |
 |---|---:|---:|
-| `native` | 76 | 92,276 |
-| `android` | 32 | 23,073 |
-| `apple` | 13 | 11,423 |
-| `managed` | 8 | 13,301 |
-| `web` | 28 | 46,094 |
-| `wasm` | 2 | 3,625 |
-| `dynamic` | 24 | 29,218 |
-| `providers` | 7 | 6,020 |
-| `firmware` | 9 | 15,453 |
-| `capture` | 6 | 8,207 |
-| `reconstruction` | 24 | 24,344 |
+| `native` | 85 | 99,784 |
+| `android` | 33 | 32,422 |
+| `apple` | 13 | 9,314 |
+| `managed` | 10 | 15,691 |
+| `web` | 31 | 53,542 |
+| `wasm` | 2 | 3,840 |
+| `dynamic` | 25 | 28,983 |
+| `providers` | 7 | 5,534 |
+| `firmware` | 12 | 15,402 |
+| `capture` | 6 | 8,056 |
+| `reconstruction` | 39 | 46,024 |
 
-各行之和比整套目录少约 200 字节（JSON 数组的标点）。`native` 是覆盖面最广的二进制分析族，也是最大的一个，所以只用 native 的会话大约只带整套目录的 34%（少约 66%）。任何规则都没覆盖的新名字会落进 `other`，它和别的类别一样可加载；`test/categories.test.mjs` 会在 REA 升级后仍有工具落在那里时失败。
+各行之和比整套目录少约 200 字节（JSON 数组的标点）。`native` 是覆盖面最广的二进制分析族，也是最大的一个，所以只用 native 的会话大约只带整套目录的 31%（少约 69%）。任何规则都没覆盖的新名字会落进 `other`，它和别的类别一样可加载；`test/categories.test.mjs` 会在 REA 升级后仍有工具落在那里时失败。
 
 ```text
 /rea                       揭示默认类别（不收窄就是全部）
@@ -93,12 +93,12 @@ Windows 上做 native 分析的推荐配置（REA 的抓包/信号工具只支�
 
 ## 保留什么
 
-- **229 个原版工具，一个不删**：反编译、交叉引用、字符串搜索、Android/ADB、托管代码、JavaScript/Electron、运行时分析等。取消自行设计的 entry/navigate/analyze 档位。
+- **263 个原版工具，一个不删**：反编译、交叉引用、字符串搜索、Android/ADB、托管代码、JavaScript/Electron、运行时分析等。取消自行设计的 entry/navigate/analyze 档位。
 - 原版输入 schema、参数和描述；DSH 公共名称为 `mcp__rea__<原工具名>`。
 - 使用 DSH 官方 `@deepseek-ai/dsh-mcp-client` 处理目录分页、目录变化、取消、生命周期、输出校验和附件投影，避免自行写一套不完整桥接。
 - 原版 `reverse-engineer-anything` Skill、上游 tool_count 元数据及全部六篇 references。直接从固定依赖中注册，并指定其资源目录；不覆盖 Codex 或用户自己的技能。
 - 运行原版有状态 MCP 进程，保留完整 Evidence 的 content 和 structuredContent，不缩减结果、不重新生成证据 ID。
-- **六个原版 MCP prompts、25 个参数及原版动态补全**从输入框的 `/` 菜单进入，与 229 个工具**共用同一个 REA Client、进程与分析会话**。
+- **六个原版 MCP prompts、25 个参数及原版动态补全**从输入框的 `/` 菜单进入，与 263 个工具**共用同一个 REA Client、进程与分析会话**。
 
 REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、设备、商业授权要求与原版相同。
 
@@ -124,7 +124,7 @@ REA 是固定版本的 npm 依赖，不是改写分析引擎。外部引擎、�
 本包**未发布到 npm**——npm 上的 `dsh-rea` 是另一个无关的同名适配器。请安装 GitHub Release 的 tarball，这正对应插件市场的 `github:` 来源格式：
 
 ```text
-https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.tgz
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/dsh-rea-6.10.1.tgz
 ```
 
 必须使用 Release 资产（市场解析的是 `releases/download/<tag>/<name>-<version>.tgz` 这种 URL）。每个 Release 的说明里写明所固定的 `rea-agents` 版本。`@deepseek-ai/dsh-*` 是 peerDependencies，由 DSH 宿主提供，不由本包安装。
@@ -162,7 +162,7 @@ https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.t
 | toolCallTimeoutMs | 300000 | MCP 调用超时；不保证外层 agent/PTC 期限更长 |
 | failOnStartupError | true | 启动失败明确报错，不静默伪装成“安装成功但没工具” |
 
-Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插件激活不安装/升级运行时或分析引擎，不修改无关审批/preset 设置。自动重连关闭：新 REA 进程会丢失当前目标/provider/保留证据，应断线后显式重载。
+Node 支持范围：`^22.23.4 || ^24.22.1 || >=26.12.1`（REA 启动时自行强制），不支持 23/25。插件激活不安装/升级运行时或分析引擎，不修改无关审批/preset 设置。自动重连关闭：新 REA 进程会丢失当前目标/provider/保留证据，应断线后显式重载。
 
 ## native 与 PTC
 
@@ -172,7 +172,7 @@ Node 支持范围：`^22.19.0 || ^24.11.0 || >=26.0.0`，不支持 23/25。插�
 
 | 方式 | 模型侧工具 JSON | 额外 SDK 提示文本 |
 |---|---:|---:|
-| native，229 个 | 273,264 字节 | 0 |
+| native，263 个 | 318,856 字节 | 0 |
 | PTC，仅 run_code | 944 字节 | 86,633 字节 |
 
 这是**字节测量，不是 tokenizer 计数**。v0.1 中“54 万输入 tokens”的说法错把返回结果 schema 算成模型输入，已经撤回。PTC 不是零上下文；SDK 仍进入提示词。worker 默认墙钟上限 600 秒、计算时间 60 秒、输出 64MiB；只有 return/print 的值进入外层结果，需要完整证据时应完整返回。两种方式保持工具返回内容，但模型使用的接口不同，不能声称回答质量完全一致。

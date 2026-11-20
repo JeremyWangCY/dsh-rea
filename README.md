@@ -1,8 +1,8 @@
 # dsh-rea
 
-Full [REA](https://github.com/morluto/rea) 6.8.0 MCP tools and its original version-matched skill for DeepSeek Harness. English | [中文](README.zh.md)
+Full [REA](https://github.com/morluto/rea) 6.10.1 MCP tools and its original version-matched skill for DeepSeek Harness. English | [中文](README.zh.md)
 
-**Lazy by default:** the 229 tool schemas and the skill stay out of a request until you run `/rea` — 273,264 bytes per request saved in native mode (~171 KB in PTC) when they are not needed.
+**Lazy by default:** the 263 tool schemas and the skill stay out of a request until you run `/rea` — 318,856 bytes per request saved in native mode (~197 KB in PTC) when they are not needed.
 
 ## Lazy exposure (default since v0.4)
 
@@ -47,23 +47,23 @@ Return to the previous always-on catalogue:
 ```
 ## Load only what you need (categories)
 
-Revealing the whole catalog costs 273,264 bytes of model-side schema per request (REA 6.8.0 advertises compact input schemas by default; `REA_MCP_INPUT_SCHEMA_PROFILE=full` makes it larger), and most sessions need a slice of it. Every upstream tool belongs to exactly one **category**, and a session can reveal only the categories it needs. Measured on REA 6.8.0 with `node verify/measure.mjs`:
+Revealing the whole catalog costs 318,856 bytes of model-side schema per request (REA 6.10.1 advertises compact input schemas by default; `REA_MCP_INPUT_SCHEMA_PROFILE=full` makes it larger), and most sessions need a slice of it. Every upstream tool belongs to exactly one **category**, and a session can reveal only the categories it needs. Measured on REA 6.10.1 with `node verify/measure.mjs`:
 
 | Category | Tools | Model-side schema bytes |
 |---|---:|---:|
-| `native` | 76 | 92,276 |
-| `android` | 32 | 23,073 |
-| `apple` | 13 | 11,423 |
-| `managed` | 8 | 13,301 |
-| `web` | 28 | 46,094 |
-| `wasm` | 2 | 3,625 |
-| `dynamic` | 24 | 29,218 |
-| `providers` | 7 | 6,020 |
-| `firmware` | 9 | 15,453 |
-| `capture` | 6 | 8,207 |
-| `reconstruction` | 24 | 24,344 |
+| `native` | 85 | 99,784 |
+| `android` | 33 | 32,422 |
+| `apple` | 13 | 9,314 |
+| `managed` | 10 | 15,691 |
+| `web` | 31 | 53,542 |
+| `wasm` | 2 | 3,840 |
+| `dynamic` | 25 | 28,983 |
+| `providers` | 7 | 5,534 |
+| `firmware` | 12 | 15,402 |
+| `capture` | 6 | 8,056 |
+| `reconstruction` | 39 | 46,024 |
 
-The rows add up to the catalog minus about 200 bytes of JSON array punctuation. `native` is the broad binary-analysis family and the largest, so a native-only session carries about 34% of the catalog (about 66% less). A name no rule maps yet falls into `other`, which is loadable like any category, and `test/categories.test.mjs` fails on an REA bump that leaves any tool there.
+The rows add up to the catalog minus about 200 bytes of JSON array punctuation. `native` is the broad binary-analysis family and the largest, so a native-only session carries about 31% of the catalog (about 69% less). A name no rule maps yet falls into `other`, which is loadable like any category, and `test/categories.test.mjs` fails on an REA bump that leaves any tool there.
 
 ```text
 /rea                       reveal the default categories (everything unless you narrow it)
@@ -93,12 +93,12 @@ Recommended profile for native work on Windows, where REA's packet and signal to
 
 ## What is preserved
 
-- All **229 upstream tools**, including navigation, decompilation, Android/ADB, managed code, JavaScript/Electron and runtime analysis. No invented entry/navigate/analyze tiers.
+- All **263 upstream tools**, including navigation, decompilation, Android/ADB, managed code, JavaScript/Electron and runtime analysis. No invented entry/navigate/analyze tiers.
 - Original input schemas and descriptions, with stable DSH names `mcp__rea__<upstream-name>`.
 - The official `@deepseek-ai/dsh-mcp-client` handles pagination, notifications, cancellation, lifecycle, output validation and attachment projection.
-- Original `reverse-engineer-anything` skill, its upstream `tool_count` and all seven references. The plugin registers the package's skill with its own resource directory; it does not overwrite Codex/user skills.
+- Original `reverse-engineer-anything` skill, its upstream `tool_count` and all eight references. The plugin registers the package's skill with its own resource directory; it does not overwrite Codex/user skills.
 - Original stateful upstream MCP process and complete Evidence `content`/`structuredContent`. No result summaries or reconstructed IDs.
-- All **six original MCP prompts** with their 25 arguments and the original dynamic completions, reachable from the composer's `/` menu on the *same* REA Client, process and analysis session as the 229 tools.
+- All **six original MCP prompts** with their 25 arguments and the original dynamic completions, reachable from the composer's `/` menu on the *same* REA Client, process and analysis session as the 263 tools.
 
 REA is an exact npm dependency, not a reimplementation. Native engines and commercial licenses remain bring-your-own, exactly as upstream.
 
@@ -124,12 +124,12 @@ Because DSH caches each package's client metadata for the lifetime of a Host pro
 This package is **not on npm** — the `dsh-rea` name on npm belongs to a different, unrelated adapter. Install it from the GitHub release tarball instead, which is what the plugin market's `github:` source consumes:
 
 ```text
-https://github.com/JeremyWangCY/dsh-rea/releases/download/v0.5.0/dsh-rea-0.5.0.tgz
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/dsh-rea-6.10.1.tgz
 ```
 
 A release asset is required (the market resolves the `releases/download/<tag>/<name>-<version>.tgz` URL): the repository alone is not enough because it is TypeScript-free only by accident — `lib/` ships pre-built, but there is no build step and no committed dist for other branches. Each release states the pinned `rea-agents` version in its notes.
 
-Verified before publishing: `pnpm test` 166/166, `pnpm verify` 35/35, `pnpm verify:lazy` 10/10, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 229 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package.
+Verified before publishing: `pnpm test` 166/166, `pnpm verify` 35/35, `pnpm verify:lazy` 10/10, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 263 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package.
 
 For local development, install the absolute directory of this checkout through the plugin manager. Use the currently active profile; Web UI does not necessarily mean the `web` profile (desktop can host the same UI).
 
@@ -164,7 +164,7 @@ The bundle inserts the host plugin. Defaults load the catalog on demand and leav
 | toolCallTimeoutMs | 300000 | MCP call timeout; not an assurance that the outer agent/PTC deadline is longer |
 | failOnStartupError | true | Report startup failure rather than silently exposing an empty tool set |
 
-Supported Node range: `^22.19.0 || ^24.11.0 || >=26.0.0`; 23/25 are unsupported. No runtime or analysis engine is installed/upgraded by plugin activation. Existing unrelated approval/preset settings are not changed. Automatic reconnection is disabled deliberately: a new REA process loses target/provider/retained Evidence state; reload explicitly after a disconnect.
+Supported Node range: `^22.23.4 || ^24.22.1 || >=26.12.1` (REA enforces this itself at startup); 23/25 are unsupported. No runtime or analysis engine is installed/upgraded by plugin activation. Existing unrelated approval/preset settings are not changed. Automatic reconnection is disabled deliberately: a new REA process loses target/provider/retained Evidence state; reload explicitly after a disconnect.
 
 ### Native versus PTC
 
@@ -174,8 +174,8 @@ Measured in an isolated real Cordis deployment on this machine:
 
 | Presentation | Model-side tool JSON | Generated SDK text |
 |---|---:|---:|
-| native, all 229 | 273,264 bytes | 0 |
-| PTC, `run_code` only | 944 bytes | 172,198 bytes |
+| native, all 263 | 318,856 bytes | 0 |
+| PTC, `run_code` only | 944 bytes | 201,597 bytes |
 
 These are **bytes, not tokenizer counts**. The previous v0.1 claim of ~543k input tokens incorrectly counted MCP output schemas as model input. PTC is not zero-context; SDK text is in the prompt. Its default worker wall limit is 600s, compute limit 60s and output limit 64MiB. Only returned/printed values become the outer result, so return complete Evidence when needed. PTC and native preserve tool results, but they are different model interfaces and are not proven to produce identical answers.
 
