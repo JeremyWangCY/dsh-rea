@@ -60,14 +60,44 @@ test('bundle patch inserts plugin with valid id/name', async () => {
  assert.equal(patch[0].insert[0].name,pkg.name)
  assert.equal(patch[0].insert[0].id,'dsh-rea')
 })
-test('vendored bridge is exactly upstream plus the documented shared-client hook', async () => {
+test('vendored bridge is exactly upstream plus the documented local changes', async () => {
   const { code, upstreamSha256, patches } = await renderVendoredBridge()
-  assert.equal(patches, 6)
+  assert.equal(patches, 8)
   assert.match(upstreamSha256, /^[a-f0-9]{64}$/)
   assert.equal(await readFile(new URL('../lib/vendor/mcp-bridge.js', import.meta.url), 'utf8'), code)
-  // The notice and the only semantic edit are both present.
+  // The notice and the shared-client hook are both present.
   assert.match(code, /Copyright \(c\) 2026 DeepSeek/)
   assert.equal(code.split('onClient?.(generation)').length - 1, 1)
+  // The bridge must resolve the owning context through whichever root API the
+  // running Cordis exports, not the property Cordis 4.2 removed.
+  assert.match(code, /^import \{ Context \} from "@deepseek-ai\/cordis";$/m)
+  assert.equal(code.includes('?? ctx.root;'), false)
+})
+
+test('the vendored owner resolution serves both Cordis root APIs', async () => {
+  const code = await readFile(new URL('../lib/vendor/mcp-bridge.js', import.meta.url), 'utf8')
+  const expression = /const owner = (scopeOf\(ctx\) \?\? \([^\n]*\));\n/.exec(code)
+  assert.ok(expression, 'the bridge no longer resolves the owning context')
+  // Evaluate the vendored expression itself, so a regression cannot hide behind
+  // a text match: on Cordis 4.2 the removed property throws when it is read.
+  const resolve = new Function('Context', 'scopeOf', 'ctx', `return ${expression[1]}`)
+  const key = Symbol.for('cordis.root')
+
+  // Cordis 4.0/4.1: no static symbol; root is an inherited property.
+  assert.equal(resolve({}, () => undefined, { root: 'root-context' }), 'root-context')
+
+  // Cordis 4.2: the root lives on the symbol and `.root` throws the exact error
+  // that used to fail activation.
+  const modern = new Proxy({ [key]: 'root-context' }, {
+    get(target, property) {
+      if (property === 'root') throw Error('cannot get property "root" without inject')
+      return target[property]
+    },
+  })
+  assert.equal(resolve({ root: key }, () => undefined, modern), 'root-context')
+
+  // An agent scope still owns the connection ahead of either root.
+  assert.equal(resolve({ root: key }, () => 'scope-owner', modern), 'scope-owner')
 })
 
 test('localized prompt titles key the real upstream prompt names', async () => {
