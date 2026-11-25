@@ -1,5 +1,6 @@
-// Reproducible copy of the MIT official bridge. No tool algorithm is changed;
-// the only local edit exposes the live Client to the prompt facade.
+// Reproducible copy of the MIT official bridge. No tool algorithm is changed:
+// the local edits expose the live Client to the prompt facade, and resolve the
+// owning context through the Cordis API the running Host actually exports.
 import { createRequire } from 'node:module'
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -17,6 +18,8 @@ const CHANGES = [
   ['\t\t\tdisposed = true;', '\t\t\tdisposed = true;\n\t\t\tonClient?.(undefined);'],
   ['async function apply(ctx, config) {', 'async function apply(ctx, config, onClient) {'],
   ['startConnection(ctx, config, reconnect);', 'startConnection(ctx, config, reconnect, onClient);'],
+  ['import { scopeOf } from "@deepseek-ai/dsh-scope";', 'import { Context } from "@deepseek-ai/cordis";\nimport { scopeOf } from "@deepseek-ai/dsh-scope";'],
+  ['const owner = scopeOf(ctx) ?? ctx.root;', 'const owner = scopeOf(ctx) ?? (Context.root ? ctx[Context.root] : ctx.root);'],
 ]
 
 /**
@@ -59,10 +62,19 @@ export async function renderVendoredBridge() {
 // SOFTWARE.
 //
 // Upstream source SHA256 ${sha}
-// Local change: an optional fourth \`onClient\` argument exposes the live MCP
+// Local change 1: an optional fourth \`onClient\` argument exposes the live MCP
 // Client so the prompt/completions facade shares this exact connection and
-// process. No tool registration, transport, reconnect or error behavior is
-// altered. Regenerate with \`node verify/vendor-bridge.mjs\`.
+// process.
+// Local change 2: the owning context is resolved as
+// \`scopeOf(ctx) ?? (Context.root ? ctx[Context.root] : ctx.root)\`.
+// Cordis 4.2 moved the root context off the public \`ctx.root\` property onto a
+// symbol (\`Symbol.for("cordis.root")\`, exported as \`Context.root\`), so the
+// old read throws "cannot get property root without inject" while a plugin is
+// activating, and the plugin never loads. \`Context.root\` is undefined on
+// Cordis 4.0/4.1, where the property still exists, so one expression serves
+// both releases.
+// No tool registration, transport, reconnect or error behavior is altered.
+// Regenerate with \`node verify/vendor-bridge.mjs\`.
 ${modified}`
   return { version: pkg.version, upstreamSha256: sha, patches: CHANGES.length, code }
 }

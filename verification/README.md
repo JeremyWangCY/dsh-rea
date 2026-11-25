@@ -153,7 +153,7 @@ require `evidence_format: 2`; `subject.identity` replaces `subject.digest`/`form
 `architecture`, and snapshots use `target: {kind, identity}`. Observations, bundles and
 snapshots saved by an earlier REA must be recreated, not re-exported.
 
-**Result on Node 24.22.3:** `node --test test/*.test.mjs` **166/166**,
+**Result on Node 24.22.3:** `node --test test/*.test.mjs` **167/167**,
 `verify/integration.mjs` **35/35**, `verify/lazy-exposure.mjs` **10/10**.
 `verify/schema-measurement.json`, `verification/integration-report.json`,
 `verification/native-result.json` and `verification/ptc-result.json` were regenerated.
