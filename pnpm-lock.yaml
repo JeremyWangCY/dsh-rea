@@ -9,22 +9,22 @@ importers:
   .:
     dependencies:
       '@deepseek-ai/dsh-attachment':
-        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2
+        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2
         version: 0.1.5-rc.3(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-brand@0.1.5-rc.3(@deepseek-ai/cordis@4.0.2))
       '@deepseek-ai/dsh-skill':
-        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2
+        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2
         version: 0.1.5-rc.3(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-llm@0.1.5-rc.3(@deepseek-ai/cordis@4.0.2))(@deepseek-ai/dsh-scope@0.1.5-rc.3(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-invariants@0.1.5-rc.3(@deepseek-ai/cordis@4.0.2)))
       '@deepseek-ai/dsh-subprocess':
-        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2
+        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2
         version: 0.1.5-rc.3(@deepseek-ai/cordis@4.0.2)(@deepseek-ai/dsh-http-proxy@0.1.5-rc.3(@deepseek-ai/cordis@4.0.2))
       '@deepseek-ai/dsh-timeout':
-        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2
+        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2
         version: 0.1.5-rc.3(@deepseek-ai/cordis@4.0.2)
       '@deepseek-ai/dsh-tools':
-        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2
+        specifier: ^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2
         version: 0.1.5-rc.3(ac70a5c0afcec020ae14ac994e8049ec)
       '@deepseek-ai/schemastery':
-        specifier: 3.18.2
+        specifier: ^3.18.2 || ^3.20.0-alpha.1
         version: 3.18.2
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0

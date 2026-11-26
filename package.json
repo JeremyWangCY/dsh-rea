@@ -1,6 +1,6 @@
 {
   "name": "@jwbo6/dsh-rea",
-  "version": "6.10.1",
+  "version": "6.10.2",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
@@ -43,13 +43,13 @@
     "@deepseek-ai/dsh-system-prompt": "0.1.5-rc.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-attachment": "^0.1.5-rc.3 || ^0.2.0-rc.2",
-    "@deepseek-ai/dsh-scope": "^0.1.5-rc.3 || ^0.2.0-rc.2",
-    "@deepseek-ai/dsh-skill": "^0.1.5-rc.3 || ^0.2.0-rc.2",
-    "@deepseek-ai/dsh-subprocess": "^0.1.5-rc.3 || ^0.2.0-rc.2",
-    "@deepseek-ai/dsh-timeout": "^0.1.5-rc.3 || ^0.2.0-rc.2",
-    "@deepseek-ai/dsh-tools": "^0.1.5-rc.3 || ^0.2.0-rc.2",
-    "@deepseek-ai/schemastery": "3.18.2"
+    "@deepseek-ai/dsh-attachment": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-scope": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-skill": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-subprocess": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-timeout": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2",
+    "@deepseek-ai/schemastery": "^3.18.2 || ^3.20.0-alpha.1"
   },
   "dsh": {
     "bundle": {
@@ -64,7 +64,8 @@
     }
   },
   "engines": {
-    "node": "^22.19.0 || ^24.11.0 || >=26.0.0"
+    "node": "^22.19.0 || ^24.11.0 || >=26.0.0",
+    "dsh": "^0.1.5-rc.3 || ^0.2.0-rc.2 || ^0.2.1-rc.1 || ^0.2.2-rc.1 || ^0.2.3-alpha.2"
   },
   "keywords": [
     "dsh-plugin",

@@ -11,11 +11,23 @@ const EXPECTED_VERSION = '0.1.5-rc.3'
 
 /** The reviewed local patch, as exact source substitutions. */
 const CHANGES = [
+  ['const owner = scopeOf(ctx) ?? ctx.root;', 'const owner = scopeOf(ctx) ?? registrationOwner(ctx);'],
+  ['async function apply(ctx, config) {', `function registrationOwner(ctx) {
+	const viaSymbol = ctx[Symbol.for("cordis.root")];
+	if (viaSymbol !== void 0) return viaSymbol;
+	// cordis 4.1.x and older expose the root context as a plain property; 4.2
+	// replaced it with an injected service that throws when read here.
+	try {
+		return ctx.root ?? ctx;
+	} catch {
+		return ctx;
+	}
+}
+async function apply(ctx, config, onClient) {`],
   ['function startConnection(ctx, config, policy) {', 'function startConnection(ctx, config, policy, onClient) {'],
   ['\t\tclient = void 0;\n\t\tclientClosed = void 0;\n\t\tscheduleReconnect();', '\t\tclient = void 0;\n\t\tclientClosed = void 0;\n\t\tonClient?.(undefined);\n\t\tscheduleReconnect();'],
   ['\t\t\tawait enqueueSync(generation, startup ? startupOpts : opts);', '\t\t\tawait enqueueSync(generation, startup ? startupOpts : opts);\n\t\t\tif (isCurrent(generation) && !hasClosed()) onClient?.(generation);'],
   ['\t\t\tdisposed = true;', '\t\t\tdisposed = true;\n\t\t\tonClient?.(undefined);'],
-  ['async function apply(ctx, config) {', 'async function apply(ctx, config, onClient) {'],
   ['startConnection(ctx, config, reconnect);', 'startConnection(ctx, config, reconnect, onClient);'],
 ]
 
@@ -59,9 +71,13 @@ export async function renderVendoredBridge() {
 // SOFTWARE.
 //
 // Upstream source SHA256 ${sha}
-// Local change: an optional fourth \`onClient\` argument exposes the live MCP
-// Client so the prompt/completions facade shares this exact connection and
-// process. No tool registration, transport, reconnect or error behavior is
+// Local changes, both reviewed: (1) an optional fourth \`onClient\` argument
+// exposes the live MCP Client so the prompt/completions facade shares this exact
+// connection and process; (2) the registration scope resolves the root context
+// through the \`cordis.root\` symbol, falling back to the plain \`ctx.root\`
+// property that cordis 4.1 still has — DSH 0.2.3's cordis 4.2 makes that
+// property an injected service that throws "cannot get property root without
+// inject". No tool registration, transport, reconnect or error behavior is
 // altered. Regenerate with \`node verify/vendor-bridge.mjs\`.
 ${modified}`
   return { version: pkg.version, upstreamSha256: sha, patches: CHANGES.length, code }

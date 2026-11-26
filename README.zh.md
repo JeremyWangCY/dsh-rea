@@ -128,10 +128,12 @@ npm 包名为 **`@jwbo6/dsh-rea`**（未加 scope 的 `dsh-rea` 属于另一个�
 ```
 
 ```text
-https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/jwbo6-dsh-rea-6.10.1.tgz
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.2/jwbo6-dsh-rea-6.10.2.tgz
 ```
 
-必须使用 Release 资产（市场解析的是 `releases/download/<tag>/<name>-<version>.tgz` 这种 URL）。每个 Release 的说明里写明所固定的 `rea-agents` 版本。`@deepseek-ai/dsh-*` 是 peerDependencies，由 DSH 宿主提供，不由本包安装。
+必须使用 Release 资产（市场解析的是 `releases/download/<tag>/<name>-<version>.tgz` 这种 URL）。每个 Release 的说明里写明所固定的 `rea-agents` 版本。`@deepseek-ai/dsh-*` 是 peerDependencies，由 DSH 宿主提供，不由本包安装。`engines.dsh` 接受 DSH 0.1.5-rc.3、0.2.0/0.2.1/0.2.2 各发布线以及 0.2.3-alpha.2；客户端 bundle 以包名注册（0.2.2 与 0.2.3 的 boot graph 都按包名索引），vendored 桥用 `Symbol.for('cordis.root')` 解析 cordis 根上下文，并为 cordis 4.1 保留 `ctx.root` 属性回退。
+
+`6.10.2` 仅适配、不动上游 REA：修正浏览器 bundle 的注册 id（必须等于包名，否则 DSH 0.2.2/0.2.3 会以 `loaded without registering … via __ModuleLoader__.load` 拒绝加载），并修正 vendored 桥的根上下文取值（DSH 0.2.3 的 cordis 4.2 把 `ctx.root` 变成注入服务，原写法会以 `cannot get property "root" without inject` 激活失败）。`engines.dsh` 同时补上了原先 `^0.2.0-rc.2` 匹配不到的 0.2.1/0.2.2 预发布线。
 
 本地开发可通过插件管理器安装此源码目录的绝对路径。必须安装到**当前活动 profile**；使用 Web 界面不一定代表 `web` profile，桌面版也承载同一界面。
 
@@ -189,7 +191,7 @@ Node 支持范围：`^22.23.4 || ^24.22.1 || >=26.12.1`（REA 启动时自行强
 
 **未声称**：全部操作实际执行；IDA/Ghidra/Hopper/JEB/ADB/浏览器捕获已验证；耗时操作中途取消已验证；LLM 回答完全相同；所有模型 provider 都接受全量 schema；所有外部 provider 的补全项都被穷尽测试。外部引擎须另做具体任务测试。
 
-官方 `@deepseek-ai/dsh-mcp-client` 没有暴露共享连接钩子，因此 `lib/vendor/mcp-bridge.js` 是该桥接的 MIT 原文副本（文件头记录上游 SHA-256），只做**一处**受审查修改：增加可选的第四个 `onClient` 参数。工具注册、传输、重连、错误与卸载行为与上游逐字节一致，`test/plugin.test.mjs` 会重新推导并比对整份文件，确保它不会静默漂移。官方桥接也不把 MCP annotations 复制到 ToolRuntime 元数据，required-task 执行不受支持。具体环境、方法和边界见[验证报告](verification/README.md)。
+官方 `@deepseek-ai/dsh-mcp-client` 没有暴露共享连接钩子，因此 `lib/vendor/mcp-bridge.js` 是该桥接的 MIT 原文副本（文件头记录上游 SHA-256），只做**两处**受审查修改：增加可选的第四个 `onClient` 参数；以及把注册作用域的回退从 `ctx.root` 属性改为读取 `cordis.root` 符号（DSH 0.2.3 把前者改成了注入服务，不改会直接激活失败）。工具注册、传输、重连、错误与卸载行为与上游逐字节一致，`test/plugin.test.mjs` 会重新推导并比对整份文件，确保它不会静默漂移。官方桥接也不把 MCP annotations 复制到 ToolRuntime 元数据，required-task 执行不受支持。具体环境、方法和边界见[验证报告](verification/README.md)。
 
 ## 从 v0.1 迁移
 

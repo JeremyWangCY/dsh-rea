@@ -2,7 +2,7 @@ const res = await fetch('http://127.0.0.1:19387/plugins/events', { signal: Abort
 const reader = res.body.getReader(); const dec = new TextDecoder(); let text = ''
 while (true) { const { value, done } = await reader.read(); if (done) break; text += dec.decode(value, {stream:true}); if (text.includes('\n\n')) break }
 const frame = JSON.parse(text.split('\n').find(l => l.startsWith('data: ')).slice(6))
-const row = (frame.graph?.entries ?? []).find(r => r.id === 'dsh-rea')
+const row = (frame.graph?.entries ?? []).find(r => r.id === '@jwbo6/dsh-rea')
 console.log('dsh-rea rev:', row?.rev)
 const bundle = await fetch(`http://127.0.0.1:19387/${row.url}`)
 const body = await bundle.text()

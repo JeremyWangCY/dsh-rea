@@ -62,12 +62,20 @@ test('bundle patch inserts plugin with valid id/name', async () => {
 })
 test('vendored bridge is exactly upstream plus the documented shared-client hook', async () => {
   const { code, upstreamSha256, patches } = await renderVendoredBridge()
-  assert.equal(patches, 6)
+  assert.equal(patches, 7)
   assert.match(upstreamSha256, /^[a-f0-9]{64}$/)
   assert.equal(await readFile(new URL('../lib/vendor/mcp-bridge.js', import.meta.url), 'utf8'), code)
-  // The notice and the only semantic edit are both present.
+  // The notice and the only semantic edits are both present.
   assert.match(code, /Copyright \(c\) 2026 DeepSeek/)
   assert.equal(code.split('onClient?.(generation)').length - 1, 1)
+  // DSH 0.2.3 turned `ctx.root` into an injected service, so the vendored
+  // fallback must reach the root context through the `cordis.root` symbol while
+  // still working on cordis 4.1, where the root context is a plain property.
+  assert.match(code, /scopeOf\(ctx\) \?\? registrationOwner\(ctx\)/)
+  assert.match(code, /ctx\[Symbol\.for\("cordis\.root"\)\]/)
+  assert.match(code, /return ctx\.root \?\? ctx/)
+  // Only the notice above may still name the old property on the call site.
+  assert.equal(code.split('?? ctx.root').length - 1, 0)
 })
 
 test('localized prompt titles key the real upstream prompt names', async () => {

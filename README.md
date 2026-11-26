@@ -128,12 +128,14 @@ Published on npm as **@jwbo6/dsh-rea** (the unscoped dsh-rea there belongs to a 
 ```
 
 ```text
-https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.1/jwbo6-dsh-rea-6.10.1.tgz
+https://github.com/JeremyWangCY/dsh-rea/releases/download/v6.10.2/jwbo6-dsh-rea-6.10.2.tgz
 ```
 
 A release asset is required (the market resolves the `releases/download/<tag>/<name>-<version>.tgz` URL): the repository alone is not enough because it is TypeScript-free only by accident — `lib/` ships pre-built, but there is no build step and no committed dist for other branches. Each release states the pinned `rea-agents` version in its notes.
 
-Verified before publishing: `pnpm test` 166/166, `pnpm verify` 35/35, `pnpm verify:lazy` 10/10, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 263 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package.
+Verified before publishing: `pnpm test` 166/166, `pnpm verify` 35/35, `pnpm verify:lazy` 10/10, plus a live MCP handshake against the packed tarball (`initialize` → `tools/list` → 263 tools). `@deepseek-ai/dsh-*` services are peer dependencies and are supplied by the DSH host, not by this package. `engines.dsh` accepts DSH 0.1.5-rc.3, the 0.2.0/0.2.1/0.2.2 release lines and 0.2.3-alpha.2; the client bundle registers under the package name (both 0.2.2 and 0.2.3 key their boot graph that way) and the vendored bridge resolves the cordis root context through `Symbol.for('cordis.root')` with a `ctx.root` property fallback for cordis 4.1.
+
+`6.10.2` is an adapter-only patch: no upstream REA change. It fixes the browser bundle's registration id (it must be the package name, or DSH 0.2.2/0.2.3 refuses to load it with `loaded without registering … via __ModuleLoader__.load`) and the vendored bridge's root-context lookup, which DSH 0.2.3's cordis 4.2 turned into an injected service and therefore failed activation with `cannot get property "root" without inject`. `engines.dsh` also now matches the 0.2.1/0.2.2 prerelease lines, which a plain `^0.2.0-rc.2` range never accepted.
 
 For local development, install the absolute directory of this checkout through the plugin manager. Use the currently active profile; Web UI does not necessarily mean the `web` profile (desktop can host the same UI).
 
@@ -191,7 +193,7 @@ Use the original skill's routing, Evidence and provider-recovery instructions. R
 
 Not claimed: all upstream operations executed; native decompilers/ADB/JEB/browser capture equivalence; mid-flight expensive-operation cancellation; identical LLM answers; every model provider's schema limits; exhaustive completion coverage for every external provider. External providers require task-specific verification.
 
-The official `@deepseek-ai/dsh-mcp-client` exposes no shared-connection hook, so `lib/vendor/mcp-bridge.js` is a verbatim MIT copy of that bridge (upstream SHA-256 recorded in its header) with exactly one reviewed local change: an optional fourth `onClient` argument. Tool registration, transport, reconnect, error and disposal behavior are byte-identical to upstream, and `test/plugin.test.mjs` re-derives and compares the whole file so it cannot silently drift. The official bridge also does not copy MCP annotations to ToolRuntime metadata; required-task execution would be unsupported. See [the bounded verification report](verification/README.md) for environment, methods and exact limitations.
+The official `@deepseek-ai/dsh-mcp-client` exposes no shared-connection hook, so `lib/vendor/mcp-bridge.js` is a verbatim MIT copy of that bridge (upstream SHA-256 recorded in its header) with exactly two reviewed local changes: an optional fourth `onClient` argument, and a registration-scope fallback that reads the `cordis.root` symbol instead of the `ctx.root` property DSH 0.2.3 turned into an injected service. Tool registration, transport, reconnect, error and disposal behavior are byte-identical to upstream, and `test/plugin.test.mjs` re-derives and compares the whole file so it cannot silently drift. The official bridge also does not copy MCP annotations to ToolRuntime metadata; required-task execution would be unsupported. See [the bounded verification report](verification/README.md) for environment, methods and exact limitations.
 
 ## Migration from v0.1
 

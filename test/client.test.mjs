@@ -6,6 +6,9 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 const sourceText = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
+// DSH keys its client boot graph by package name, so the bundle id is not free
+// to choose: reading it from the manifest keeps that contract in one place.
+const { name: packageName } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
 /** Minimal hook runtime: one store per component function, effects after render. */
 function createReact() {
@@ -112,7 +115,7 @@ async function mount(options = {}) {
   globalThis.document = { createElement: () => styleNode, head: { append() {} } }
   try {
     await import(`../lib/client.js?cacheBust=${Math.random()}`)
-    assert.equal(factory.id, 'dsh-rea')
+    assert.equal(factory.id, packageName, 'the bundle must register the package name DSH keys its boot graph by')
     bundle = factory.factory((specifier) => {
       assert.equal(specifier, 'react')
       return harness.react
@@ -289,7 +292,7 @@ test('an HMR re-apply keeps the surviving source and the live panel on one state
 })
 
 test('the bundled client keeps its closure-factory handoff and own style tag', async () => {
-  assert.match(sourceText, /__ModuleLoader__\.load\(\{ id: 'dsh-rea'/)
+  assert.match(sourceText, /__ModuleLoader__\.load\(\{ id: '@jwbo6\/dsh-rea'/)
   assert.match(sourceText, /dataset\.plugin = 'dsh-rea'/)
   assert.match(sourceText, /registerSource/)
   assert.doesNotMatch(sourceText, /dsh-rea-launch/, 'the removed launch button must not linger')
